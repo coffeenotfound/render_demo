@@ -62,14 +62,15 @@ impl Texture {
 		}
 	}
 	
-	pub fn load_png_from_path(path: &Path) -> Result<Texture, Box<dyn error::Error>> {
+	pub fn load_png_from_path(path: &Path, image_format: ImageFormat) -> Result<Texture, Box<dyn error::Error>> {
 		// Load texture
 		let result = lodepng::decode32_file(path)?;
 		
 		let (img_width, img_height) = (result.width, result.height);
 		
 		// Allocate texture
-		let mut texture = Texture::new(img_width as u32, img_height as u32, 8, ImageFormat::get(gl::SRGB8_ALPHA8));
+		//let mut texture = Texture::new(img_width as u32, img_height as u32, 8, ImageFormat::get(gl::SRGB8_ALPHA8));
+		let mut texture = Texture::new(img_width as u32, img_height as u32, 8, image_format);
 		texture.allocate();
 		
 		// Upload image data

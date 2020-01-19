@@ -4,8 +4,8 @@ use std::fs::{OpenOptions};
 use std::path::{PathBuf, Path};
 use std::panic;
 use byte_slice_cast::*;
-use cgmath::{Deg, Rad, Vector3, Quaternion, vec3, Rotation};
-use crate::render::{RenderGlobal, Texture, TestVertexBuffer};
+use cgmath::{Deg, Rad, Vector3, Quaternion, vec3, Rotation, Vector2, vec2, InnerSpace};
+use crate::render::{RenderGlobal, Texture, TestVertexBuffer, ImageFormat, RenderSubsystem};
 use crate::render::separable_sss::{SubsurfaceKernelGenerator, DEFAULT_HUMAN_SKIN_FALLOFF_FACTORS, DEFAULT_HUMAN_SKIN_STRENGTH_FACTORS};
 use crate::model::ply::{PlyMeshLoader, PullEvent, PlyReadError};
 use crate::utils::lazy_option::Lazy;
@@ -255,9 +255,9 @@ impl Demo {
 			}
 			
 			// Load textures
-			let tex_albedo = Texture::load_png_from_path(Path::new(r"C:/Users/Jan/Desktop/Lee Head/lee_head_albedo.png")).expect("Failed to load albedo texture");
+			let tex_albedo = Texture::load_png_from_path(Path::new(r"C:/Users/Jan/Desktop/Lee Head/lee_head_albedo.png"), ImageFormat::get(gl::SRGB8_ALPHA8)).expect("Failed to load albedo texture");
 //			let tex_albedo = Texture::load_png_from_path(Path::new(r"C:/Users/Jan/Desktop/Lee Head/export/xnormal_text_translucency.png")).expect("Failed to load albedo texture");
-			let tex_normal = Texture::load_png_from_path(Path::new(r"C:/Users/Jan/Desktop/Lee Head/lee_head_normal.png")).expect("Failed to load normal texture");
+			let tex_normal = Texture::load_png_from_path(Path::new(r"C:/Users/Jan/Desktop/Lee Head/lee_head_normal.png"), ImageFormat::get(gl::RGBA8)).expect("Failed to load normal texture");
 			
 			self.test_head_model = Some(TestHeadModel {
 				vertex_buffer_gl,
