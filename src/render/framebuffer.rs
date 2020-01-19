@@ -128,6 +128,22 @@ impl Framebuffer {
 	}
 	
 	pub fn resize(&mut self, new_width: u32, new_height: u32) -> bool {
+		fn resize_attachment(attachment: &mut FramebufferAttachment, new_width: u32, new_height: u32) {
+			attachment.resize(new_width, new_height);
+		}
+		
+		// Resize depth attachment
+		if let Some(depth) = &mut self.depth_attachment {
+			resize_attachment(depth, new_width, new_height);
+		}
+		
+		// Resize color attachments
+		for attachment in &mut self.color_attachments.iter_mut() {
+			if let Some(color) = attachment.as_mut() {
+				resize_attachment(color, new_width, new_height);
+			}
+		}
+		
 		true
 	}
 	
@@ -154,6 +170,22 @@ impl FramebufferAttachment {
 		let mut tex = self.texture.borrow_mut();
 		tex.resize(width, height);
 		tex.allocate();
+	}
+	
+	pub fn resize(&mut self, width: u32, height: u32) {
+		// Delete old texture
+		let tex = RefCell::borrow_mut(&mut self.texture);
+		
+		if tex.texture_gl() != 0 {
+			let tex_gl: gl::uint = tex.texture_gl(); 
+			unsafe {
+				gl::DeleteTextures(1, &tex_gl);
+			}
+		}
+		drop(tex);
+		
+		// Reallocate
+		self.allocate(width, height);
 	}
 	
 	pub fn from_texture(attachment_point: AttachmentPoint, texture: Rc<RefCell<Texture>>, level: u32) -> FramebufferAttachment {
