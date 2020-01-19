@@ -396,9 +396,9 @@ impl GraphicsConfiguration {
 }
 
 pub struct ReconfigureEvent<'a> {
-	configuration: &'a GraphicsConfiguration,
-	resolution: (u32, u32),
-	only_resize: bool,
+	pub configuration: &'a GraphicsConfiguration,
+	pub resolution: (u32, u32),
+	pub only_resize: bool,
 }
 
 pub struct RenderCameraState {
