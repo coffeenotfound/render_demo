@@ -13,6 +13,7 @@ use std::sync::{self, Arc, Mutex};
 use crate::camera::{Camera, PerspectiveProjection, OrbitAngles};
 use crate::camera::utils::fovx_to_fovy;
 use std::sync::mpsc::Receiver;
+use byteorder::{LittleEndian, ByteOrder};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 static mut DEMO_INSTANCE: Option<Demo> = Option::None;
@@ -173,7 +174,7 @@ impl Demo {
 			}
 			
 			// Allocate data buffers
-			let mut vertex_data_buffer = vec![0u8; (num_vertices as usize) * 4*12]; // vertex (3) + normal
+			let mut vertex_data_buffer = vec![0u8; (num_vertices as usize) * 4*8]; // vertex (3) + normal
 			let mut index_data_buffer = vec![0u8; (num_indices as usize) * 4];
 			
 			loop {
@@ -228,6 +229,9 @@ impl Demo {
 					PullEvent::End => break,
 				}
 			}
+			
+			// Generate tangents
+			let (index_data_buffer, vertex_data_buffer) = calculate_mesh_tangents(num_indices, index_data_buffer, num_vertices, vertex_data_buffer);
 			
 //			// DEBUG:
 //			println!("#0: {}", LittleEndian::read_f32(&vertex_data_buffer[0..4]));
@@ -402,6 +406,91 @@ pub struct TestHeadModel {
 	pub tex_albedo: Texture,
 	pub tex_normal: Texture,
 //	pub tex_roughness: Texture,
+}
+
+pub fn calculate_mesh_tangents(num_indices: u32, index_data: Vec<u8>, num_vertices: u32, vertex_data: Vec<u8>) -> (Vec<u8>, Vec<u8>) {
+	// https://www.marti.works/calculating-tangents-for-your-mesh/
+	
+	let mut tangent_list = vec![vec3(0.0, 0.0, 0.0); num_vertices as usize];
+	let mut bitangent_list = tangent_list.clone();
+	
+	fn read_vec3_f32(buffer: &[u8]) -> Vector3<f32> {
+		vec3(LittleEndian::read_f32(&buffer[0..4]), LittleEndian::read_f32(&buffer[4..8]), LittleEndian::read_f32(&buffer[8..12]))
+	}
+	fn read_vec2_f32(buffer: &[u8]) -> Vector2<f32> {
+		vec2(LittleEndian::read_f32(&buffer[0..4]), LittleEndian::read_f32(&buffer[4..8]))
+	}
+	
+	for i in (0..num_indices as usize).step_by(3) {
+		let index_base = i*4;
+		let index0 = LittleEndian::read_u32(&index_data[(index_base)..(index_base+4)]) as usize;
+		let index1 = LittleEndian::read_u32(&index_data[(index_base+4)..(index_base+8)]) as usize;
+		let index2 = LittleEndian::read_u32(&index_data[(index_base+8)..(index_base+12)]) as usize;
+		
+		let vertex0 = read_vec3_f32(&vertex_data[(index0*32)..(index0*32+12)]);
+		let vertex1 = read_vec3_f32(&vertex_data[(index1*32)..(index1*32+12)]);
+		let vertex2 = read_vec3_f32(&vertex_data[(index2*32)..(index2*32+12)]);
+		
+		let uv0 = read_vec2_f32(&vertex_data[(index0*32+24)..(index0*32+32)]);
+		let uv1 = read_vec2_f32(&vertex_data[(index1*32+24)..(index1*32+32)]);
+		let uv2 = read_vec2_f32(&vertex_data[(index2*32+24)..(index2*32+32)]);
+		
+		let edge1: Vector3<f32> = vertex1 - vertex0;
+		let edge2: Vector3<f32> = vertex2 - vertex0;
+		
+		let uv_edge1: Vector2<f32> = uv1 - uv0;
+		let uv_edge2: Vector2<f32> = uv2 - uv0;
+		
+		let r = 1.0 / (uv_edge1.x * uv_edge2.y - uv_edge1.y * uv_edge2.x);
+		
+		let tangent = vec3(
+			((edge1.x * uv_edge2.y) - (edge2.x * uv_edge1.y)) * r,
+			((edge1.y * uv_edge2.y) - (edge2.y * uv_edge1.y)) * r,
+			((edge1.z * uv_edge2.y) - (edge2.z * uv_edge1.y)) * r
+		);
+		let bitangent = vec3(
+			((edge1.x * uv_edge2.x) - (edge2.x * uv_edge1.x)) * r,
+			((edge1.y * uv_edge2.x) - (edge2.y * uv_edge1.x)) * r,
+			((edge1.z * uv_edge2.x) - (edge2.z * uv_edge1.x)) * r
+		);
+		
+		tangent_list[index0] += tangent;
+		tangent_list[index1] += tangent;
+		tangent_list[index2] += tangent;
+		
+		bitangent_list[index0] += bitangent;
+		bitangent_list[index1] += bitangent;
+		bitangent_list[index2] += bitangent;
+	}
+	
+	let mut new_vertex_data = vec![0; num_vertices as usize * 48];
+	
+	for i in 0..num_vertices as usize {
+		let n = read_vec3_f32(&vertex_data[(i*32+12)..(i*32+24)]);
+		let t0 = tangent_list[i];
+		let t1 = bitangent_list[i];
+		
+		let t = Vector3::normalize(t0 - (n * Vector3::dot(n, t0)));
+		
+		let c = Vector3::cross(n, t0);
+		
+		// Calculate handedness: Needed for calculating the binormal in the right direction
+		let w = if Vector3::dot(c, t1) < 0.0 {-1.0} else {1.0};
+		
+		let final_tangent = t.extend(w);
+		
+		new_vertex_data[i*48..i*48+32].copy_from_slice(&vertex_data[i*32..i*32+32]);
+		
+		let mut tangent_buffer = [0u8; 16];
+		LittleEndian::write_f32(&mut tangent_buffer[0..4], final_tangent.x);
+		LittleEndian::write_f32(&mut tangent_buffer[4..8], final_tangent.y);
+		LittleEndian::write_f32(&mut tangent_buffer[8..12], final_tangent.z);
+		LittleEndian::write_f32(&mut tangent_buffer[12..16], final_tangent.w);
+		
+		new_vertex_data[i*48+32..i*48+48].copy_from_slice(&tangent_buffer);
+	}
+	
+	(index_data, new_vertex_data)
 }
 
 /*

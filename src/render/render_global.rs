@@ -255,13 +255,16 @@ impl RenderGlobal {
 				gl::BindTextureUnit(2, test_head_model.tex_normal.texture_gl());
 				
 				gl::BindBuffer(gl::ARRAY_BUFFER, test_head_model.vertex_buffer_gl);
-				let stride = 8*4;
+//				let stride = 8*4;
+				let stride = 12*4;
 				gl::EnableVertexAttribArray(0);
 				gl::EnableVertexAttribArray(1);
 				gl::EnableVertexAttribArray(2);
+				gl::EnableVertexAttribArray(3);
 				gl::VertexAttribPointer(0, 3, gl::FLOAT, gl::FALSE, stride, 0 as *const gl::void); // vertex
 				gl::VertexAttribPointer(1, 2, gl::FLOAT, gl::FALSE, stride, (3*4 + 3*4) as *const gl::void); // texcoord
 				gl::VertexAttribPointer(2, 3, gl::FLOAT, gl::FALSE, stride, (3*4) as *const gl::void); // normal
+				gl::VertexAttribPointer(3, 4, gl::FLOAT, gl::FALSE, stride, (3*4 + 3*4 + 2*4) as *const gl::void); // tangent
 				
 				gl::BindBuffer(gl::ELEMENT_ARRAY_BUFFER, test_head_model.index_buffer_gl);
 				
@@ -271,6 +274,7 @@ impl RenderGlobal {
 				gl::DisableVertexAttribArray(0);
 				gl::DisableVertexAttribArray(1);
 				gl::DisableVertexAttribArray(2);
+				gl::DisableVertexAttribArray(3);
 			}
 //			*/
 			
