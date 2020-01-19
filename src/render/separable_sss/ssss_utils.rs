@@ -1,6 +1,6 @@
 use cgmath::{Vector3, Vector4, ElementWise, vec3};
 
-pub const DEFAULT_HUMAN_SKIN_FALLOFF_FACTORS: SubsurfaceFalloffFactors = SubsurfaceFalloffFactors::new(1.0, 0.37, 0.30);
+pub const DEFAULT_HUMAN_SKIN_FALLOFF_FACTORS: SubsurfaceFalloffFactors = SubsurfaceFalloffFactors::new(1.0, 0.37, 0.36);
 pub const DEFAULT_HUMAN_SKIN_STRENGTH_FACTORS: SubsurfaceStrengthFactors = SubsurfaceStrengthFactors::new(0.48, 0.41, 0.28);
 
 //#[derive(Clone, Copy)]

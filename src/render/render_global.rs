@@ -1,17 +1,21 @@
 use std::error;
 use gl_bindings::gl;
-use crate::render::{ShaderProgram, Framebuffer, FramebufferAttachment, AttachmentPoint, ImageFormat};
+use crate::render::{ShaderProgram, Framebuffer, FramebufferAttachment, AttachmentPoint, ImageFormat, RenderSubsystem};
 use crate::utils::lazy_option::Lazy;
-use cgmath::{Matrix4, SquareMatrix, vec3, Point3};
+use cgmath::{Matrix4, SquareMatrix, vec3, Point3, Rad};
 use std::rc::Rc;
 use std::cell::RefCell;
 use std::ops::Deref;
 use crate::demo;
 use std::sync::Mutex;
+use crate::render::separable_sss::SeparableSSSSubsystem;
+use crate::camera::{PerspectiveProjection, CameraProjection};
 
 pub struct RenderGlobal {
 	current_configuration: Rc<RefCell<GraphicsConfiguration>>,
 	current_resolution: (u32, u32),
+	
+	separable_sss_system: SeparableSSSSubsystem,
 	
 	framebuffer_scene_hdr_ehaa: Option<Rc<RefCell<Framebuffer>>>,
 	
@@ -29,6 +33,8 @@ impl RenderGlobal {
 			current_configuration: Rc::new(RefCell::new(GraphicsConfiguration::new())),
 			current_resolution: (0, 0),
 			
+			separable_sss_system: SeparableSSSSubsystem::new(),
+			
 			framebuffer_scene_hdr_ehaa: None,
 			
 			program_ehaa_scene: None,
@@ -43,6 +49,9 @@ impl RenderGlobal {
 	pub fn initialize(&mut self, resolution: (u32, u32)) -> Result<(), Box<dyn error::Error>> {
 		// Set initial resolution
 		self.current_resolution = resolution;
+		
+		// Init subsystems
+		self.separable_sss_system.initialize();
 		
 		// Do initial reconfiguration
 		self.do_reconfigure_pipeline(self.current_resolution, false)?;
@@ -80,6 +89,9 @@ impl RenderGlobal {
 				fbo
 			})));
 		}
+		
+		// Reconfigure subsystems
+		self.separable_sss_system.reconfigure(event);
 		
 		// Drop config for now
 		drop(config);
@@ -135,6 +147,9 @@ impl RenderGlobal {
 			s.compile();
 			Rc::new(RefCell::new(s))
 		});
+		
+		// Reload subsystem shaders
+		self.separable_sss_system.reload_shaders();
 	}
 	
 	pub fn do_render_frame(&mut self) {
@@ -154,9 +169,22 @@ impl RenderGlobal {
 			return;
 		};
 		
+		let camera_fovy: Rad<f32>;
+		let camera_near_z: f32;
+		let camera_far_z: f32;
+		
 		let cam_state = {
 			let cam = Mutex::lock(&active_camera).unwrap();
 			let mut state = RenderCameraState::new();
+			
+			// Get camera fovy
+//			let projection: &dyn Any = cam.projection.as_ref();
+//			let projection: &PerspectiveProjection = projection.downcast_ref::<PerspectiveProjection>().unwrap();
+			
+			camera_fovy = cam.projection.camera_fovy();
+			let (near_z, far_z) = cam.projection.test_depth_planes();
+			camera_near_z = near_z;
+			camera_far_z = far_z;
 			
 			// Base matrix for our coordinate system (
 			let base_matrix = Matrix4::look_at_dir(Point3 {x: 0.0, y: 0.0, z: 0.0}, vec3(0.0, 0.0, 1.0), vec3(0.0, 1.0, 0.0)); // For some reason look_at_dir inverts the dir vector
@@ -309,6 +337,15 @@ impl RenderGlobal {
 			}
 			*/
 			
+			{// Resolve separable sss
+				let main_fbo = RefCell::borrow(self.framebuffer_scene_hdr_ehaa.need());
+				let scene_hdr_rt = RefCell::borrow(&main_fbo.get_attachment(AttachmentPoint::Color(0)).unwrap().texture);
+				let scene_depth_rt = RefCell::borrow(&main_fbo.get_attachment(AttachmentPoint::Depth).unwrap().texture);
+				
+				// Render ssss
+				self.separable_sss_system.do_resolve_sss(&scene_hdr_rt, &scene_depth_rt, camera_fovy, (camera_near_z, camera_far_z));
+			}
+			
 			{// Do ehaa resolve pass
 				let post_resolve_shader = RefCell::borrow(self.program_post_resolve.need());
 				
@@ -322,7 +359,8 @@ impl RenderGlobal {
 				
 				// Bind shaders
 				let main_fbo = RefCell::borrow(self.framebuffer_scene_hdr_ehaa.need());
-				gl::BindTextureUnit(0, RefCell::borrow(&main_fbo.get_attachment(AttachmentPoint::Color(0)).unwrap().texture).texture_gl());
+//				gl::BindTextureUnit(0, RefCell::borrow(&main_fbo.get_attachment(AttachmentPoint::Color(0)).unwrap().texture).texture_gl());
+ 				gl::BindTextureUnit(0, RefCell::borrow(&self.separable_sss_system.fbo_resolve_final.get_attachment(AttachmentPoint::Color(0)).unwrap().texture).texture_gl());
 				gl::BindTextureUnit(1, RefCell::borrow(&main_fbo.get_attachment(AttachmentPoint::Color(1)).unwrap().texture).texture_gl());
 				
 				// Bind back buffer
