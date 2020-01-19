@@ -13,6 +13,7 @@ use std::sync::{self, Arc, Mutex};
 use crate::camera::{Camera, PerspectiveProjection, OrbitAngles};
 use crate::camera::utils::fovx_to_fovy;
 use std::sync::mpsc::Receiver;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 static mut DEMO_INSTANCE: Option<Demo> = Option::None;
 
@@ -43,6 +44,7 @@ pub struct Demo {
 //	pub test_camera_euler: Euler<Deg<f32>>,
 //	pub camera_rotation: Euler<Deg<f32>>,
 //	pub camera_position: Vector3<f32>,
+	pub test_camera_carousel_state: DemoCameraCarouselState,
 }
 
 impl Demo {
@@ -59,6 +61,7 @@ impl Demo {
 			
 			test_active_camera: None,
 			test_camera_orbit: {let mut a = OrbitAngles::new_zero(vec3(0.0, 1.0, 0.0), vec3(0.0, 0.0, -1.0)); a.distance = 3.5; a},
+			test_camera_carousel_state: DemoCameraCarouselState::new(),
 //			test_camera_euler: Euler::new(Deg(0.0), Deg(0.0), Deg(0.0)),
 			
 //			camera_rotation: Euler::new(Deg(0.0), Deg(0.0), Deg(0.0)),
@@ -321,25 +324,70 @@ impl Demo {
 	}
 	
 	pub fn do_tick_frame(&mut self) {
-		// DEBUG: Rotate camera
-		self.test_camera_orbit.angles.y += Deg(0.15).into();
+		{// Tick demo camera carousel
+			let carousel = &mut self.test_camera_carousel_state;
+			
+			let current_time = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs_f64();
+			if carousel.last_tick_time == 0.0 {
+				carousel.last_tick_time = current_time;
+			}
+			
+			// Get tick delta time, clamped from 0 to 1
+			let delta_time = f32::min(f32::max((current_time - carousel.last_tick_time) as f32, 0.0), 1.0);
+			
+			let mouse_pos = self.window.need().get_cursor_pos();
+			
+			let button_state = self.window.need().get_mouse_button(glfw::MouseButtonLeft);
+			if let glfw::Action::Press = button_state {
+				// Deaccelerate spin
+				carousel.current_spin_speed = f32::max(carousel.current_spin_speed - carousel.spin_deacceleration_per_sec * delta_time, 0.0);
+				
+				// Reset override timeout
+				carousel.override_timeout_left = carousel.override_timeout_length_secs;
+				
+				// Spin camera by mouse delta
+				let mouse_delta = (mouse_pos.0 - carousel.last_mouse_pos.0) as f32;
+				
+				// Apply drag spin
+				self.test_camera_orbit.angles.y += Deg(mouse_delta * carousel.drag_spin_sensitivity).into();
+			}
+			else {
+				if carousel.current_spin_speed > 0.0 {
+					carousel.override_timeout_left = 0.0;
+				}
+				
+				if carousel.override_timeout_left > 0.0 {
+					carousel.override_timeout_left = f32::max(0.0, carousel.override_timeout_left - delta_time);
+				}
+				else {
+					carousel.current_spin_speed = f32::min(carousel.current_spin_speed + carousel.spin_acceleration_per_sec * delta_time, carousel.max_spin_speed);
+				}
+			}
+			
+			// Set last time and mouse pos
+			carousel.last_tick_time = current_time;
+			carousel.last_mouse_pos = mouse_pos;
+			
+			// Actually rotate camera orbit
+			self.test_camera_orbit.angles.y += Deg(carousel.current_spin_speed).into();
+		}
 		
-		let mut cam = self.test_active_camera.need().lock().unwrap();
-		
-		// Update camera viewport size
-		let window = self.window.need();
-		let window_size = window.get_size();
-		cam.viewport_size = (window_size.0 as u32, window_size.1 as u32);
-		
-		// Update camera transform
-		let mut orbit = &mut self.test_camera_orbit;
-		orbit.center = vec3(0.0, 0.5, 0.0);
-//		orbit.distance = 5.0;
-		
-		let rotation = Quaternion::<f32>::from(orbit.angles);
-		cam.rotation = rotation.clone().invert();
-		cam.translation = orbit.center + (&rotation * vec3::<f32>(0.0, 0.0, -1.0) * -orbit.distance);
-//		cam.translation = vec3(0.0, 2.0, 4.0);
+		{// Update cam
+			let mut cam = self.test_active_camera.need().lock().unwrap();
+			
+			// Update camera viewport size
+			let window = self.window.need();
+			let window_size = window.get_size();
+			cam.viewport_size = (window_size.0 as u32, window_size.1 as u32);
+			
+			// Update camera transform
+			let mut orbit = &mut self.test_camera_orbit;
+			orbit.center = vec3(0.0, 0.5, 0.0);
+			
+			let rotation = Quaternion::<f32>::from(orbit.angles);
+			cam.rotation = rotation.clone().invert();
+			cam.translation = orbit.center + (&rotation * vec3::<f32>(0.0, 0.0, -1.0) * -orbit.distance);
+		}
 	}
 }
 
@@ -391,3 +439,33 @@ fn test_model_load(asset_folder: &Path) {
 }
 */
 
+pub struct DemoCameraCarouselState {
+	pub spin_acceleration_per_sec: f32,
+	pub spin_deacceleration_per_sec: f32,
+	pub max_spin_speed: f32,
+	pub current_spin_speed: f32,
+	pub override_timeout_length_secs: f32,
+	pub override_timeout_left: f32,
+	
+	pub last_tick_time: f64,
+	pub last_mouse_pos: (f64, f64),
+	pub drag_spin_sensitivity: f32,
+}
+
+impl DemoCameraCarouselState {
+	pub fn new() -> DemoCameraCarouselState {
+		DemoCameraCarouselState {
+			spin_acceleration_per_sec: 0.15,
+			spin_deacceleration_per_sec: 0.8,
+			//max_spin_speed: 0.15,
+			max_spin_speed: 0.0,
+			current_spin_speed: 0.15,
+			override_timeout_length_secs: 0.5,
+			override_timeout_left: 0.0,
+			
+			last_tick_time: 0.0,
+			last_mouse_pos: (0.0, 0.0),
+			drag_spin_sensitivity: 0.1,
+		}
+	}
+}
