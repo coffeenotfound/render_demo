@@ -41,9 +41,6 @@ pub struct Demo {
 	
 	pub test_active_camera: Option<Arc<Mutex<Camera>>>,
 	pub test_camera_orbit: OrbitAngles,
-//	pub test_camera_euler: Euler<Deg<f32>>,
-//	pub camera_rotation: Euler<Deg<f32>>,
-//	pub camera_position: Vector3<f32>,
 	pub test_camera_carousel_state: DemoCameraCarouselState,
 }
 
@@ -62,10 +59,6 @@ impl Demo {
 			test_active_camera: None,
 			test_camera_orbit: {let mut a = OrbitAngles::new_zero(vec3(0.0, 1.0, 0.0), vec3(0.0, 0.0, -1.0)); a.distance = 3.5; a},
 			test_camera_carousel_state: DemoCameraCarouselState::new(),
-//			test_camera_euler: Euler::new(Deg(0.0), Deg(0.0), Deg(0.0)),
-			
-//			camera_rotation: Euler::new(Deg(0.0), Deg(0.0), Deg(0.0)),
-//			camera_position: Vector3 {x: 0.0, y: 1.0, z: 4.0},
 		}
 	}
 	
