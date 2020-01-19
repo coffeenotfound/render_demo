@@ -205,10 +205,12 @@ impl RenderGlobal {
 			gl::CullFace(gl::BACK);
 			
 			gl::Enable(gl::DEPTH_TEST);
-			gl::DepthFunc(gl::GREATER);
 			
+			// Setup NDC z axis for reverse float depth
+			gl::DepthFunc(gl::GREATER);
+			gl::ClearDepth(0.0); // 0.0 is far with reverse z
 			gl::ClipControl(gl::LOWER_LEFT, gl::ZERO_TO_ONE);
-//			gl::DepthRange(1.0, 0.0);
+			gl::DepthRange(0.0, 1.0); // Standard (non-inversed) depth range, we use a reverse-z projection matrix instead
 			
 			// Use scene shader
 			let scene_shader = RefCell::borrow(&self.program_ehaa_scene.need());
@@ -219,7 +221,6 @@ impl RenderGlobal {
 			gl::BindFramebuffer(gl::FRAMEBUFFER, scene_fbo.handle_gl());
 			
 			gl::ClearColor(0.0, 0.0, 0.0, 0.0);
-			gl::ClearDepth(0.0); // 0.0 is far with reverse z
 			gl::Clear(gl::COLOR_BUFFER_BIT | gl::DEPTH_BUFFER_BIT);
 			
 			{// Upload matrices
