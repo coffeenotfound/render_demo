@@ -29,7 +29,8 @@ vec3 separablesssTransmittance(vec2 modelTexCoord, float translucency, float sss
 	
 	// Sample transmission map
 	float sampledTransmission = texture(transmissionTex, modelTexCoord.st).x;
-	float d = scale * sampledTransmission; // TODO: Denormalize transmission map value via ramp
+//	float sampledTransmission = 1.0;
+	float d = scale * (1.0 - sampledTransmission); // TODO: Denormalize transmission map value via ramp
 	
 	// Calculate transmittance profile
 	float dd = -d * d;
@@ -129,7 +130,12 @@ void main() {
 		vec3 Kd = (1.0 - Ks) * (1.0 - metalness);
 		vec3 lambert = NdotL * albedo * lightIntensities;
 		
-		radiance += (Kd * lambert) + specular; // I'm not entirely sure, but the fresnel factor is already applied to specular in the specular term
+		// Subsurface
+		float sssTranslucency = 0.83;
+		float sssWidth = 0.012; // 0.012
+		vec3 subsurface = rawDiffuse * separablesssTransmittance(texCoord.st, sssTranslucency, 16.0*sssWidth, tVertexWorldspace.xyz, N, L, texMaterialTransmission);
+		
+		radiance += (Kd * lambert) + subsurface + specular; // I'm not entirely sure, but the fresnel factor is already applied to specular in the specular term
 	}
 	
 	radiance += albedo * vec3(0.004, 0.005, 0.015);

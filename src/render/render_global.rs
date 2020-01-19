@@ -281,6 +281,7 @@ impl RenderGlobal {
 				// Bind textures
 				gl::BindTextureUnit(1, test_head_model.tex_albedo.texture_gl());
 				gl::BindTextureUnit(2, test_head_model.tex_normal.texture_gl());
+				gl::BindTextureUnit(4, test_head_model.tex_transmission.texture_gl());
 				
 				gl::BindBuffer(gl::ARRAY_BUFFER, test_head_model.vertex_buffer_gl);
 //				let stride = 8*4;

@@ -258,6 +258,7 @@ impl Demo {
 			let tex_albedo = Texture::load_png_from_path(Path::new(r"C:/Users/Jan/Desktop/Lee Head/lee_head_albedo.png"), ImageFormat::get(gl::SRGB8_ALPHA8)).expect("Failed to load albedo texture");
 //			let tex_albedo = Texture::load_png_from_path(Path::new(r"C:/Users/Jan/Desktop/Lee Head/export/xnormal_text_translucency.png")).expect("Failed to load albedo texture");
 			let tex_normal = Texture::load_png_from_path(Path::new(r"C:/Users/Jan/Desktop/Lee Head/lee_head_normal.png"), ImageFormat::get(gl::RGBA8)).expect("Failed to load normal texture");
+			let tex_transmission = Texture::load_png_from_path(Path::new(r"C:/Users/Jan/Desktop/Lee Head/lee_head_transmission.png"), ImageFormat::get(gl::RGBA8)).expect("Failed to load transmission texture");
 			
 			self.test_head_model = Some(TestHeadModel {
 				vertex_buffer_gl,
@@ -265,6 +266,7 @@ impl Demo {
 				num_indices,
 				tex_albedo,
 				tex_normal,
+				tex_transmission,
 			});
 		}
 		
@@ -405,6 +407,7 @@ pub struct TestHeadModel {
 	
 	pub tex_albedo: Texture,
 	pub tex_normal: Texture,
+	pub tex_transmission: Texture,
 //	pub tex_roughness: Texture,
 }
 
