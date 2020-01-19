@@ -2,6 +2,11 @@ use cgmath::{Matrix4, Rad, SquareMatrix, Zero};
 
 pub trait CameraProjection {
 	fn projection_matrix(&self, viewport_size: (u32, u32)) -> Matrix4<f32>;
+	
+	/// This is dumb but downcasting trait objects is even dumber
+	fn camera_fovy(&self) -> Rad<f32>;
+	
+	fn test_depth_planes(&self) -> (f32, f32);
 }
 
 pub struct PerspectiveProjection {
@@ -70,5 +75,13 @@ impl CameraProjection for PerspectiveProjection {
 			mat = mat * depth_reversal_matrix;
 		}
 		mat
+	}
+	
+	fn camera_fovy(&self) -> Rad<f32> {
+		self.fovy
+	}
+	
+	fn test_depth_planes(&self) -> (f32, f32) {
+		(self.near_z, self.far_z)
 	}
 }
