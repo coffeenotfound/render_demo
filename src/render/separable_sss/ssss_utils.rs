@@ -113,7 +113,7 @@ impl SubsurfaceKernelGenerator {
 		
 		// We want the offset 0.0 to come first
 		let t = kernel_slice[self.kernel_size as usize / 2];
-		for i in (1..(self.kernel_size as usize / 2)).rev() {
+		for i in (1..=(self.kernel_size as usize / 2)).rev() {
 			kernel_slice[i] = kernel_slice[i - 1];
 		}
 		kernel_slice[0] = t;
