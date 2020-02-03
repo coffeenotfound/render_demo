@@ -405,7 +405,7 @@ pub extern "system" fn gl_debug_callback(_source: gl::enuma, _message_type: gl::
 	println!("[GL DEBUG] {}", message);
 	
 	// Since the string isn't actually ours this prevents
-	// heap corruption when rust tries to free the Strings data
+	// heap corruption when rust tries to free the String's data
 	std::mem::forget(message);
 }
 
