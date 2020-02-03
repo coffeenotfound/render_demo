@@ -93,8 +93,9 @@ impl SubsurfaceKernelGenerator {
 		let step = 2.0f32 * range / (self.kernel_size - 1) as f32;
 		for i in 0..self.kernel_size as usize {
 			let o = -range + (i as f32) * step;
-			let sign = if o < 0.0 {-1.0} else {1.0};
-			let dist = range * sign * f32::abs(f32::powf(o, exponent)) / f32::powf(range, exponent);
+			//let sign = if o < 0.0 {-1.0} else {1.0};
+			let sign = f32::signum(o);
+			let dist = range * sign * f32::powf(f32::abs(o), exponent) / f32::powf(range, exponent);
 			
 			kernel_slice[i] = Vector4 {x: 0.0, y: 0.0, z: 0.0, w: dist};
 		}
