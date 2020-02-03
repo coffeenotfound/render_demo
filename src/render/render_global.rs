@@ -210,6 +210,7 @@ impl RenderGlobal {
 		if self.program_post_composite.needs_recompile() {
 			self.program_post_composite.do_recompile();
 		}
+		
 		unsafe {
 			gl::Disable(gl::FRAMEBUFFER_SRGB);
 			gl::Disable(gl::BLEND);
