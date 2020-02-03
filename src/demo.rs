@@ -15,6 +15,7 @@ use crate::camera::utils::fovx_to_fovy;
 use std::sync::mpsc::Receiver;
 use byteorder::{LittleEndian, ByteOrder};
 use std::time::{SystemTime, UNIX_EPOCH};
+use crate::asset::ASSET_MANAGER_INSTANCE;
 
 static mut DEMO_INSTANCE: Option<Demo> = Option::None;
 
@@ -150,8 +151,14 @@ impl Demo {
 		}
 		
 		// Resolve asset folder
-		self.asset_folder = Some(std::env::current_dir().unwrap().join("assets/"));
+		let current_dir = PathBuf::from(std::env::current_dir().unwrap().as_os_str().to_os_string().into_string().unwrap().replace("\\", "/"));
+		
+		self.asset_folder = Some(current_dir.join("assets/"));
 		println!("Asset folder '{}'", self.asset_folder.need().as_path().display());
+		
+		unsafe {
+			ASSET_MANAGER_INSTANCE.init(self.asset_folder.as_ref().unwrap().clone());
+		}
 		
 		{// Load test model (lee head)
 			let mut file = OpenOptions::new().read(true).open(r"C:\Users\Jan\Desktop\Lee Head\Lee Head.ply").expect("Failed to load test lee head model");
