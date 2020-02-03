@@ -59,7 +59,7 @@ impl Demo {
 			test_head_model: None,
 			
 			test_active_camera: None,
-			test_camera_orbit: {let mut a = OrbitAngles::new_zero(vec3(0.0, 1.0, 0.0), vec3(0.0, 0.0, -1.0)); a.distance = 3.5; a},
+			test_camera_orbit: {let mut a = OrbitAngles::new_zero(vec3(0.0, 1.0, 0.0), vec3(0.0, 0.0, -1.0)); a.distance = 3.5; a.center = vec3(0.0, 1.75, 0.0); a},
 			test_camera_carousel_state: DemoCameraCarouselState::new(),
 		}
 	}
@@ -358,6 +358,9 @@ impl Demo {
 				
 				// Apply drag spin
 				self.test_camera_orbit.angles.y += Deg(mouse_delta * carousel.drag_spin_sensitivity).into();
+				
+				// Vertical movement
+				self.test_camera_orbit.center.y += (mouse_pos.1 - carousel.last_mouse_pos.1) as f32 * 0.001;
 			}
 			else {
 				if carousel.current_spin_speed > 0.0 {
@@ -389,8 +392,9 @@ impl Demo {
 			cam.viewport_size = (window_size.0 as u32, window_size.1 as u32);
 			
 			// Update camera transform
-			let mut orbit = &mut self.test_camera_orbit;
-			orbit.center = vec3(0.0, 0.5, 0.0);
+			let orbit = &self.test_camera_orbit;
+//			orbit.center = vec3(0.0, 0.5, 0.0);
+//			orbit.center = vec3(0.0, 1.75, 0.0);
 			
 			let rotation = Quaternion::<f32>::from(orbit.angles);
 			cam.rotation = rotation.clone().invert();
