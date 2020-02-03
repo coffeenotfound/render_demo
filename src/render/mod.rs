@@ -7,6 +7,7 @@ mod test_vertex_buffer; pub use test_vertex_buffer::*;
 mod render_subsystem; pub use render_subsystem::*;
 pub mod shader;
 pub mod separable_sss;
-pub mod teapot;
 pub mod bloom;
 pub mod clustered;
+pub mod performance;
+pub mod teapot;
