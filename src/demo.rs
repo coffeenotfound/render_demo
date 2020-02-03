@@ -107,7 +107,7 @@ impl Demo {
 		unsafe {
 			gl::Enable(gl::DEBUG_OUTPUT);
 			gl::Enable(gl::DEBUG_OUTPUT_SYNCHRONOUS);
-			gl::DebugMessageCallback(Some(gl_debug_callback), std::ptr::null())
+			gl::DebugMessageCallback(Some(gl_debug_callback), std::ptr::null());
 		};
 		
 		{// DEBUG: Test ssss kernel gen
