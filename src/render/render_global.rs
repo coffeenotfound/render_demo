@@ -155,6 +155,7 @@ impl RenderGlobal {
 //			s.compile();
 //			Rc::new(RefCell::new(s))
 //		});
+
 		// Reload subsystem shaders
 		self.separable_sss_system.reload_shaders();
 	}
