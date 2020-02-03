@@ -5,7 +5,7 @@ use std::path::{PathBuf, Path};
 use std::panic;
 use byte_slice_cast::*;
 use cgmath::{Deg, Rad, Vector3, Quaternion, vec3, Rotation, Vector2, vec2, InnerSpace};
-use crate::render::{RenderGlobal, Texture, TestVertexBuffer, ImageFormat, RenderSubsystem};
+use crate::render::{RenderGlobal, Texture, TestVertexBuffer, ImageFormat};
 use crate::render::separable_sss::{SubsurfaceKernelGenerator, DEFAULT_HUMAN_SKIN_FALLOFF_FACTORS, DEFAULT_HUMAN_SKIN_STRENGTH_FACTORS};
 use crate::model::ply::{PlyMeshLoader, PullEvent, PlyReadError};
 use crate::utils::lazy_option::Lazy;
@@ -72,7 +72,8 @@ impl Demo {
 	}
 	
 	pub fn run(&mut self) {
-		let resolution = (1280, 720);
+		//let resolution = (1280, 720);
+		let resolution = (1600, 900);
 		
 		// Init glfw
 		let mut glfw = glfw::init(glfw::FAIL_ON_ERRORS).expect("Failed to init glfw");
@@ -83,7 +84,7 @@ impl Demo {
 		
 		// Create glfw window
 		let window_glfw = {
-			let (window_glfw, window_channel) = glfw.create_window(resolution.0, resolution.1, "EHAA Demo kinda maybe", WindowMode::Windowed).expect("Failed to create glfw window");
+			let (window_glfw, window_channel) = glfw.create_window(resolution.0, resolution.1, "Render Demo", WindowMode::Windowed).expect("Failed to create glfw window");
 			self.window = Some(window_glfw);
 			self.window_channel = Some(window_channel);
 			
@@ -122,34 +123,7 @@ impl Demo {
 				
 				println!("	vec4({:.6}, {:.6}, {:.6}, {:.6}),", sample.x, sample.y, sample.z, sample.w);
 			}
-			println!("}}");
-			
-//			let file = OpenOptions::new().create(true).truncate(true).write(true).open(Path::new("ssss_kernel.png")).unwrap();
-//			let mut png_encoder = png::Encoder::new(file, ssss_kernel.kernel_size(), 1);
-//			
-//			png_encoder.set_color(ColorType::RGBA);
-//			png_encoder.set_depth(BitDepth::Eight);
-//			let mut png_writer = png_encoder.write_header().unwrap();
-//			
-//			let image_data: &[u8] = unsafe {core::slice::from_raw_parts(ssss_kernel.as_slice().as_ptr() as *const u8, ssss_kernel.kernel_size() as usize * std::mem::size_of::<Vector4<f32>>())};
-//			let mut image_data = Vec::<u8>::with_capacity(ssss_kernel.kernel_size() as usize * 4);
-//			unsafe {image_data.set_len(image_data.capacity())};
-//			
-//			for i in 0..ssss_kernel.kernel_size() {
-//				let v = ssss_kernel.as_slice()[i as usize];
-//				let idx = i as usize * 4;
-//				let slice = image_data.as_mut_slice();
-//				slice[idx+0] = f32::round(v.x * 255.0) as u8;
-//				slice[idx+1] = f32::round(v.y * 255.0) as u8;
-//				slice[idx+2] = f32::round(v.z * 255.0) as u8;
-//				slice[idx+3] = f32::round(v.w * 255.0) as u8;
-////				slice[idx+3] = 255;
-//			}
-//			
-//			let _ = png_writer.write_image_data(image_data.as_slice()).unwrap();
-			
-			// Log
-			println!("Saved ssss debug kernel image");
+			println!("}};");
 		}
 		
 		// Resolve asset folder
@@ -163,7 +137,11 @@ impl Demo {
 		}
 		
 		{// Load test model (lee head)
-			let mut file = OpenOptions::new().read(true).open(r"C:\Users\Jan\Desktop\Lee Head\Lee Head.ply").expect("Failed to load test lee head model");
+			// Log
+			println!("Loading lee head model");
+			
+//			let mut file = OpenOptions::new().read(true).open(r"C:\Users\Jan\Desktop\Lee Head\Lee Head.ply").expect("Failed to load test lee head model");
+			let mut file = OpenOptions::new().read(true).open(r"C:\Users\Jan\Desktop\Free Head\Free Head.ply").expect("Failed to load test free head model");
 			
 			let loader = PlyMeshLoader::new(&mut file);
 			let mut puller = loader.parse_header().unwrap();
@@ -183,7 +161,7 @@ impl Demo {
 			}
 			
 			// Allocate data buffers
-			let mut vertex_data_buffer = vec![0u8; (num_vertices as usize) * 4*8]; // vertex (3) + normal
+			let mut vertex_data_buffer = vec![0u8; (num_vertices as usize) * 4*8];
 			let mut index_data_buffer = vec![0u8; (num_indices as usize) * 4];
 			
 			loop {
@@ -242,12 +220,6 @@ impl Demo {
 			// Generate tangents
 			let (index_data_buffer, vertex_data_buffer) = calculate_mesh_tangents(num_indices, index_data_buffer, num_vertices, vertex_data_buffer);
 			
-//			// DEBUG:
-//			println!("#0: {}", LittleEndian::read_f32(&vertex_data_buffer[0..4]));
-//			let stride = 4*8;
-//			println!("#1: {}", LittleEndian::read_f32(&vertex_data_buffer[stride..stride+4]));
-//			println!("#2: {}", LittleEndian::read_f32(&vertex_data_buffer[(stride*2)..(stride*2)+4]));
-			
 			// Allocate vertex buffers
 			let (vertex_buffer_gl, index_buffer_gl) = unsafe {
 				let mut buffers = [0 as gl::uint, 2];
@@ -259,15 +231,22 @@ impl Demo {
 			unsafe {
 				gl::NamedBufferStorage(vertex_buffer_gl, vertex_data_buffer.len() as gl::sizeiptr, vertex_data_buffer.as_ptr() as *const gl::void, 0);
 				gl::NamedBufferStorage(index_buffer_gl, index_data_buffer.len() as gl::sizeiptr, index_data_buffer.as_ptr() as *const gl::void, 0);
-//				gl::NamedBufferData(vertex_buffer_gl, vertex_data_buffer.len() as gl::GLsizeiptr, vertex_data_buffer.as_ptr() as *const std::ffi::c_void, gl::STATIC_DRAW);
-//				gl::NamedBufferData(index_buffer_gl, index_data_buffer.len() as gl::GLsizeiptr, index_data_buffer.as_ptr() as *const std::ffi::c_void, gl::STATIC_DRAW);
 			}
 			
 			// Load textures
-			let tex_albedo = Texture::load_png_from_path(Path::new(r"C:/Users/Jan/Desktop/Lee Head/lee_head_albedo.png"), ImageFormat::get(gl::SRGB8_ALPHA8)).expect("Failed to load albedo texture");
-//			let tex_albedo = Texture::load_png_from_path(Path::new(r"C:/Users/Jan/Desktop/Lee Head/export/xnormal_text_translucency.png")).expect("Failed to load albedo texture");
-			let tex_normal = Texture::load_png_from_path(Path::new(r"C:/Users/Jan/Desktop/Lee Head/lee_head_normal.png"), ImageFormat::get(gl::RGBA8)).expect("Failed to load normal texture");
-			let tex_transmission = Texture::load_png_from_path(Path::new(r"C:/Users/Jan/Desktop/Lee Head/lee_head_transmission.png"), ImageFormat::get(gl::RGBA8)).expect("Failed to load transmission texture");
+			println!("Loading lee head textures");
+			
+//			let tex_albedo = Texture::load_png_from_path(Path::new(r"C:/Users/Jan/Desktop/Lee Head/lee_head_albedo.png"), ImageFormat::get(gl::SRGB8_ALPHA8)).expect("Failed to load albedo texture");
+//			let tex_normal = Texture::load_png_from_path(Path::new(r"C:/Users/Jan/Desktop/Lee Head/lee_head_normal.png"), ImageFormat::get(gl::RGBA8)).expect("Failed to load normal texture");
+//			let tex_transmission = Texture::load_png_from_path(Path::new(r"C:/Users/Jan/Desktop/Lee Head/lee_head_transmission.png"), ImageFormat::get(gl::RGBA8)).expect("Failed to load transmission texture");
+			
+			let tex_albedo = Texture::load_png_from_path(Path::new(r"C:/Users/Jan/Desktop/Free Head/albedo.png"), ImageFormat::get(gl::SRGB8_ALPHA8)).expect("Failed to load albedo texture");
+			let tex_normal = Texture::load_png_from_path(Path::new(r"C:/Users/Jan/Desktop/Free Head/normal.png"), ImageFormat::get(gl::RGBA8)).expect("Failed to load normal texture");
+			let tex_transmission = Texture::load_png_from_path(Path::new(r"C:/Users/Jan/Desktop/Free Head/translucency.png"), ImageFormat::get(gl::RGBA8)).expect("Failed to load transmission texture");
+			
+//			let tex_albedo = Texture::new(16, 16, 1, ImageFormat::get(gl::RGBA8));
+//			let tex_normal = Texture::new(16, 16, 1, ImageFormat::get(gl::RGBA8));
+//			let tex_transmission = Texture::new(16, 16, 1, ImageFormat::get(gl::RGBA8));
 			
 			self.test_head_model = Some(TestHeadModel {
 				vertex_buffer_gl,
@@ -288,7 +267,7 @@ impl Demo {
 		
 		// Create main camera
 		self.test_active_camera = Some(Arc::new(Mutex::new({
-			let fovy = fovx_to_fovy(Rad::from(Deg(65.0)), 16.0/9.0);
+			let fovy = fovx_to_fovy(Rad::from(Deg(65.0)), resolution.0 as f32 /resolution.1 as f32);
 			let projection = PerspectiveProjection::new(fovy, 1.0/256.0, 4096.0, true, true);
 			let mut cam = Camera::new(Box::new(projection));
 			cam.translation = Vector3 {x: 0.0, y: 1.0, z: 4.0};
@@ -304,10 +283,10 @@ impl Demo {
 			glfw.poll_events();
 			for (_, event) in glfw::flush_messages(self.window_channel.need()) {
 				match event {
-					WindowEvent::Scroll(scroll_x, scroll_y) => {
+					WindowEvent::Scroll(_scroll_x, scroll_y) => {
 						self.test_camera_orbit.distance = f32::min(f32::max(self.test_camera_orbit.distance - ((scroll_y as f32 * 0.1) * self.test_camera_orbit.distance), 2.0), 16.0);
 					}
-					WindowEvent::Key(key, scancode, action, _) => {
+					WindowEvent::Key(key, _scancode, action, _) => {
 						if key == glfw::Key::R && action == glfw::Action::Press {
 							// Reload shaders
 							self.render_global.queue_shader_reload();
