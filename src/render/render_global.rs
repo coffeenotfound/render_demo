@@ -1,17 +1,16 @@
 use std::error;
-use gl_bindings::gl;
-use crate::render::{ShaderProgram, Framebuffer, FramebufferAttachment, AttachmentPoint, ImageFormat, RenderSubsystem};
-use crate::utils::lazy_option::Lazy;
-use cgmath::{Matrix4, SquareMatrix, vec3, Point3, Rad};
 use std::rc::Rc;
 use std::cell::RefCell;
 use std::ops::Deref;
-use crate::demo;
 use std::sync::Mutex;
+use gl_bindings::gl;
+use cgmath::{Matrix4, SquareMatrix, vec3, Point3, Rad};
+use crate::demo;
+use crate::utils::lazy_option::Lazy;
+use crate::render::{Framebuffer, FramebufferAttachment, AttachmentPoint, ImageFormat, RenderSubsystem};
 use crate::render::separable_sss::SeparableSSSSubsystem;
 use crate::render::shader::managed::ManagedProgram;
 use crate::asset::AssetPathBuf;
-use crate::camera::{PerspectiveProjection, CameraProjection};
 
 pub struct RenderGlobal {
 	current_configuration: Rc<RefCell<GraphicsConfiguration>>,
