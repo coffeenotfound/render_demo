@@ -1,6 +1,6 @@
 use gl_bindings::gl;
 use crate::render::{ImageFormat, Texture};
-use crate::bool_cmpxchg::BoolCompareExchange;
+use crate::utils::bool_cmpxchg::BoolCompareExchange;
 use std::rc::Rc;
 use std::cell::RefCell;
 
