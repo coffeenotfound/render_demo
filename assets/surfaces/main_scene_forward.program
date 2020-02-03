@@ -1,0 +1,17 @@
+{
+	"id": "main_scene_forward",
+	"shaders": [
+		{
+			"type": "vertex",
+			"source": "main_scene_forward.vert.glsl"
+		},
+		{
+			"type": "tess_evaluation",
+			"source": "main_scene_forward.tesseval.glsl"
+		},
+		{
+			"type": "fragment",
+			"source": "main_scene_forward.frag.glsl"
+		}
+	]
+}

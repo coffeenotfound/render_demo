@@ -1,0 +1,13 @@
+@glslversion 430 core
+@shadertype vertex
+@namespace post_composite.vert
+
+@import oversized_screen_triangle
+
+out vec2 vScreenTexCoord;
+
+@hide // Hide the main function from export
+void main() {
+	gl_Position = calcOversizedScreenTriangleCoord(gl_VertexID, vScreenTexCoord);
+}
+@end

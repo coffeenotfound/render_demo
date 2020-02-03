@@ -1,0 +1,15 @@
+{
+	"id": "main_shader",
+	"includes": [
+		"some_utility.ssl"
+	],
+	"shaders": [
+		{
+			"stage": "vertex",
+			"source": "main_shader.vert.ssl",
+			"includes": [
+				"some_special_vertex_utils.ssl"
+			]
+		}
+	]
+}

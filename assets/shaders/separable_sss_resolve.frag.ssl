@@ -1,0 +1,245 @@
+@glslversion 430 core
+@shadertype fragment
+@namespace separable_sss_resolve.frag
+
+#define SSSS_TEST_ENABLE 1
+
+#ifndef SSSS_FOLLOW_SURFACE
+#define SSSS_FOLLOW_SURFACE 1
+#endif
+
+#define SSSS_JITTER 1
+#define SSSS_JITTER_SAMPLE_DISTANCE_THRESHOLD 0.33
+
+#define SSSS_TEST_QUALITY 210
+
+#if SSSS_TEST_QUALITY == 210	// 21 sample kernel, 2.5 importance exponent
+	#define SSSS_KERNEL_RANGE 3.00
+	#define SSSS_KERNEL_NUM_SAMPLES 21
+	vec4 SSSS_KERNEL[SSSS_KERNEL_NUM_SAMPLES] = {
+		vec4(0.524780, 0.600531, 0.727384, 0.000000),
+		vec4(0.001397, 0.000016, 0.000009, -3.000000),
+		vec4(0.005932, 0.000182, 0.000110, -2.305301),
+		vec4(0.009620, 0.000639, 0.000393, -1.717300),
+		vec4(0.014117, 0.002597, 0.001616, -1.229890),
+		vec4(0.020990, 0.007530, 0.004917, -0.836564),
+		vec4(0.032415, 0.014604, 0.009770, -0.530330),
+		vec4(0.051885, 0.026125, 0.017557, -0.303579),
+		vec4(0.053623, 0.052546, 0.035372, -0.147885),
+		vec4(0.034120, 0.065854, 0.045788, -0.053666),
+		vec4(0.013510, 0.029641, 0.020778, -0.009487),
+		vec4(0.013510, 0.029641, 0.020778, 0.009487),
+		vec4(0.034120, 0.065854, 0.045788, 0.053666),
+		vec4(0.053623, 0.052546, 0.035372, 0.147885),
+		vec4(0.051885, 0.026125, 0.017557, 0.303579),
+		vec4(0.032415, 0.014604, 0.009770, 0.530330),
+		vec4(0.020990, 0.007530, 0.004917, 0.836565),
+		vec4(0.014117, 0.002597, 0.001616, 1.229891),
+		vec4(0.009620, 0.000639, 0.000393, 1.717300),
+		vec4(0.005932, 0.000182, 0.000110, 2.305301),
+		vec4(0.001397, 0.000016, 0.000009, 3.000000),
+	};
+#endif
+
+#if SSSS_TEST_QUALITY == 110	// 11 sample kernel, 3.0 importance exponent
+	#define SSSS_KERNEL_RANGE 2.00
+	#define SSSS_KERNEL_NUM_SAMPLES 11
+	vec4 SSSS_KERNEL[] = {
+		vec4(0.527889, 0.605837, 0.731114, 0.000000),
+		vec4(0.006231, 0.000251, 0.000155, -2.000000),
+		vec4(0.033287, 0.008313, 0.005312, -1.024000),
+		vec4(0.074164, 0.030837, 0.020685, -0.432000),
+		vec4(0.090876, 0.095213, 0.064488, -0.128000),
+		vec4(0.031497, 0.062468, 0.043805, -0.016000),
+		vec4(0.031497, 0.062468, 0.043805, 0.016000),
+		vec4(0.090876, 0.095213, 0.064488, 0.128000),
+		vec4(0.074164, 0.030837, 0.020685, 0.432000),
+		vec4(0.033287, 0.008313, 0.005312, 1.024000),
+		vec4(0.006231, 0.000251, 0.000155, 2.000000),
+	};
+#elif SSSS_TEST_QUALITY == 111	// 11 sample kernel, 2.5 importance exponent
+	#define SSSS_KERNEL_RANGE 2.00
+	#define SSSS_KERNEL_NUM_SAMPLES 11
+	vec4 SSSS_KERNEL[] = {
+		vec4(0.537879, 0.626840, 0.745743, 0.000000),
+		vec4(0.005533, 0.000229, 0.000140, -2.000000),
+		vec4(0.025816, 0.005298, 0.003318, -1.144867),
+		vec4(0.052417, 0.021955, 0.014618, -0.557710),
+		vec4(0.097209, 0.061879, 0.041381, -0.202386),
+		vec4(0.050086, 0.097219, 0.067672, -0.035777),
+		vec4(0.050086, 0.097219, 0.067672, 0.035777),
+		vec4(0.097209, 0.061879, 0.041380, 0.202386),
+		vec4(0.052417, 0.021955, 0.014618, 0.557710),
+		vec4(0.025816, 0.005298, 0.003318, 1.144867),
+		vec4(0.005533, 0.000229, 0.000140, 2.000000),
+	};
+#endif
+
+#if SSSS_TEST_QUALITY == 70	// 7 sample kernel, 1.0 importance exponent
+	#define SSSS_KERNEL_RANGE 2.00
+	#define SSSS_KERNEL_NUM_SAMPLES 7
+	vec4 SSSS_KERNEL[] = {
+		vec4(0.728194, 0.790948, 0.857415, 0.000000),
+		vec4(0.002696, 0.000052, 0.000031, -2.000000),
+		vec4(0.011581, 0.000743, 0.000447, -1.333333),
+		vec4(0.208194, 0.200948, 0.137415, 0.000000),
+		vec4(0.035058, 0.006514, 0.004213, 0.666667),
+		vec4(0.011581, 0.000743, 0.000447, 1.333333),
+		vec4(0.002696, 0.000052, 0.000031, 2.000000),
+	};
+#elif SSSS_TEST_QUALITY == 71	// 7 sample kernel, 2.0 importance exponent
+	#define SSSS_KERNEL_RANGE 2.00
+	#define SSSS_KERNEL_NUM_SAMPLES 7
+	vec4 SSSS_KERNEL[] = {
+		vec4(0.628990, 0.751966, 0.831790, 0.000000),
+		vec4(0.007056, 0.000210, 0.000127, -2.000000),
+		vec4(0.047199, 0.010690, 0.006831, -0.888889),
+		vec4(0.108990, 0.161966, 0.111790, 0.000000),
+		vec4(0.153510, 0.064269, 0.042503, 0.222222),
+		vec4(0.047199, 0.010689, 0.006831, 0.888889),
+		vec4(0.007056, 0.000210, 0.000127, 2.000000),
+	};
+#elif SSSS_TEST_QUALITY == 72	// 7 sample kernel, 2.5 importance exponent
+	#define SSSS_KERNEL_RANGE 2.00
+	#define SSSS_KERNEL_NUM_SAMPLES 7
+	vec4 SSSS_KERNEL[] = {
+		vec4(0.576965, 0.692264, 0.791903, 0.000000),
+		vec4(0.007325, 0.000264, 0.000163, -2.000000),
+		vec4(0.061509, 0.020238, 0.013394, -0.725775),
+		vec4(0.142684, 0.133366, 0.090492, -0.128300),
+		vec4(0.142684, 0.133366, 0.090492, 0.128300),
+		vec4(0.061509, 0.020238, 0.013394, 0.725775),
+		vec4(0.007325, 0.000264, 0.000163, 2.000000),
+	};
+#elif SSSS_TEST_QUALITY == 73	// 7 sample kernel, 3.0 importance exponent
+	#define SSSS_KERNEL_RANGE 2.00
+	#define SSSS_KERNEL_NUM_SAMPLES 7
+	vec4 SSSS_KERNEL[] = {
+		vec4(0.553275, 0.640805, 0.755327, 0.000000),
+		vec4(0.008186, 0.000251, 0.000153, -2.000000),
+		vec4(0.087424, 0.026814, 0.017730, -0.592592),
+		vec4(0.127753, 0.152533, 0.104453, -0.074074),
+		vec4(0.127753, 0.152533, 0.104453, 0.074074),
+		vec4(0.087423, 0.026814, 0.017730, 0.592593),
+		vec4(0.008186, 0.000251, 0.000153, 2.000000),
+	};
+#endif
+
+
+/**
+ * For the first pass the final scene hdr render target,
+ * for the second pass the intermediate rt from the first
+ * sss resolve pass.
+ */
+layout(binding = 0) uniform sampler2D texSceneHDR;
+
+/**
+ * Depth buffer of the scene. The depth should be linear but we
+ * are using reverse float z which is linear-ish enough
+ */
+layout(binding = 1) uniform sampler2D texSceneDepth;
+
+/** Global width of the seperable sss filter in worldspace units */
+//uniform float uGlobalSSSWidth = 0.012;
+uniform float uGlobalSSSWidth = 0.025;
+
+/** Direction of the filter pass. vec2(1.0, 0.0) for first pass, vec2(0.0, 1.0) for second. */
+uniform vec2 uSeparablePassDir;
+
+/** Calculated as follows: 1.0 / tan(0.5 * camera_fovy_rad)*/
+uniform float uDistanceToProjectionWindow;
+//uniform float uCameraFovyRad;
+
+/**
+ * Contains the camera's vec2(nearZ, farZ).
+ * Note that nearZ is always smaller than farZ, no matter
+ * if we're using reverse depth or not.
+ */
+uniform vec2 uCameraDepthPlanes;
+
+in vec2 vScreenTexCoord;
+
+out vec3 outBlurredFragHDR;
+
+float linearizeDepth(float logarithmicDepth, vec2 depthPlanes) {
+	float near = depthPlanes.x;
+	float far = depthPlanes.y;
+	return (2.0 * near) / (far + near - (logarithmicDepth * (far - near)));
+}
+
+float rand(vec2 co) {
+	return fract(sin(dot(co.xy, vec2(12.9898, 78.233))) * 43758.5453);
+}
+
+void main() {
+	vec2 texCoord = vScreenTexCoord.st;
+	
+	// Sample the sss strength
+	float sampledSubsurfaceStrength = 0.8; // TODO: Sample from a rendertarget
+	
+	// If no sss is needed at this frag just "discard"
+	// We do this in addition to stencil testing because the stencil
+	// buffer may also be used for other and because they're is no way
+	// to set single bits
+	if(sampledSubsurfaceStrength == 0.0) {
+		outBlurredFragHDR = texture(texSceneHDR, texCoord.st).rgb;
+		return;
+	}
+	
+	// Sample the current frag
+	vec3 frag = texture(texSceneHDR, texCoord.st).rgb;
+	float linearDepth = linearizeDepth(1.0 - texture(texSceneDepth, texCoord.st).r, uCameraDepthPlanes);
+		
+	// Calculate the screenspace filter scale (1.0 for a unit plane sitting on the projection window)
+//	float distanceToProjectionWindow = 1.0 / tan(0.5 * uCameraFovyRad);
+	float distanceToProjectionWindow = uDistanceToProjectionWindow;
+	float scale = distanceToProjectionWindow / linearDepth;
+	
+	// Calculate the final step to fetch the other samples
+	vec2 finalStep = vec2(sampledSubsurfaceStrength * scale * uGlobalSSSWidth) / (vec2(textureSize(texSceneHDR, 0)) * SSSS_KERNEL_RANGE);
+	
+	// Accumulate the center sample
+	vec3 blurredFrag = frag * SSSS_KERNEL[0].rgb;
+	
+	// Apply the filter
+	for(int i = 1; i < SSSS_KERNEL_NUM_SAMPLES; i++) {
+		vec4 kernelSample = SSSS_KERNEL[i];
+		
+		// Do jittering (random rotation of the filter axis)
+		vec2 jitteredOffset = uSeparablePassDir;
+		
+	#if SSSS_JITTER == 1
+		// Only jitter samples that are at most x percent away from the center of the kernel to avoid tex memory thrashing
+		if(abs(kernelSample.a) < (SSSS_JITTER_SAMPLE_DISTANCE_THRESHOLD * SSSS_KERNEL_RANGE)) {
+			float jitter = rand(gl_FragCoord.xy);
+			jitteredOffset = normalize(jitteredOffset.xy * jitter + jitteredOffset.yx * vec2(-(1.0 - jitter), 1.0 - jitter));
+		}
+	#endif
+		
+		// DEBUG:
+		//vec2 finalOffset = (jitteredOffset + (1.0 - 2.0 * vec2(rand(gl_FragCoord.xy * 2.0), rand(gl_FragCoord.xy * 4.0 + 20.0)))) * finalStep * kernelSample.a;
+		
+		// Fetch sample data
+		vec2 finalOffset = jitteredOffset * finalStep * kernelSample.a;
+		vec2 offsetTexCoord = texCoord + finalOffset;
+		vec3 sampleFrag = texture(texSceneHDR, offsetTexCoord.st).rgb;
+		
+	#if SSSS_FOLLOW_SURFACE == 1
+		float sampleLinearDepth = linearizeDepth(1.0 - texture(texSceneDepth, offsetTexCoord.st).r, uCameraDepthPlanes);
+		
+		// If the difference in depth is huge, we lerp color back to the center frag color
+		const float DEPTH_DISCONTINUITY_FACTOR = 150000.0; // 300.0
+		float s = clamp(DEPTH_DISCONTINUITY_FACTOR * distanceToProjectionWindow * uGlobalSSSWidth * abs(linearDepth - sampleLinearDepth), 0.0, 1.0); //
+		sampleFrag = mix(sampleFrag, frag, s);
+	#endif
+		
+		// Accumulate
+		blurredFrag += kernelSample.rgb * sampleFrag;
+	}
+	
+	// Write out blurred frag
+	outBlurredFragHDR = blurredFrag;
+#if SSSS_TEST_ENABLE != 1
+	outBlurredFragHDR = frag;
+#endif
+}

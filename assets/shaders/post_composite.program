@@ -1,0 +1,16 @@
+Program (
+	id: "post_composite",
+	includes: [
+		"/shaders/oversized_screen_triangle.incl.ssl"
+	],
+	shaders: [
+		Shader (
+			stage: Vertex,
+			source: "post_composite.vert.ssl"
+		),
+		Shader (
+			stage: Fragment,
+			source: "post_composite.frag.ssl"
+		)
+	]
+)

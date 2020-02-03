@@ -1,0 +1,17 @@
+Program (
+	id: "main_scene_forward",
+	shaders: [
+		Shader (
+			stage: Vertex,
+			source: "main_scene_forward.vert.ssl"
+		),
+		Shader (
+			stage: TessEvaluation,
+			source: "main_scene_forward.tesseval.ssl"
+		),
+		Shader (
+			stage: Fragment,
+			source: "main_scene_forward.frag.ssl"
+		)
+	]
+)

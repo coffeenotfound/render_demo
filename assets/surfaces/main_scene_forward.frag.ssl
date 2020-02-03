@@ -49,12 +49,11 @@ vec3 separablesssTransmittance(vec2 modelTexCoord, float translucency, float sss
  * HdotVL can be either HdotV or HdotL
  */
 vec3 fresnelSchlick(float HdotVorL, vec3 F0) {
-	/*
 	float invHdotL = 1.0 - HdotVorL;
 	float Hdot2 = invHdotL*invHdotL;
 	float Hdot4 = Hdot2*Hdot2;
-	*/
-	return F0 + (1.0 - F0) * /*Hdot4*invHdotL*/ pow(1.0 - HdotVorL, 5.0);
+	float Hdot5 = Hdot4*invHdotL;
+	return F0 + (1.0 - F0) * Hdot5;
 }
 
 float distributionGGXTrowbridge(float NdotH, float alpha) {
@@ -71,13 +70,13 @@ float geometrySmithSchlickGGX(float NdotL, float NdotV, float alpha) {
 	return termsG1.x * termsG1.y;
 }
 
-vec3 cookTorranceSpecular(float NdotV, float NdotL, float NdotH, float HdotVorL, vec3 albedo, float roughness, float metalness, out vec3 Ks) {
+vec3 cookTorranceSpecular(float NdotV, float NdotL, float NdotH, float HdotVorL, vec3 albedo, float roughness, float inverseMetalness, out vec3 Ks) {
 	float alpha = roughness*roughness;
 	
 	// Schlick F0
 	const float ior = 1.47; // 1.47 is pretty representative for all kinds of materials
 	float f = abs((1.0 - ior) / (1.0 + ior));
-	vec3 F0 = mix(vec3(f*f), albedo, metalness); // Lerp to albedo color for conductors
+	vec3 F0 = mix(albedo, vec3(f*f), inverseMetalness); // Lerp to albedo color for conductors
 	
 	// Fresnel term: Schlick Fresnel
 	vec3 F = fresnelSchlick(HdotVorL, F0);
@@ -89,8 +88,7 @@ vec3 cookTorranceSpecular(float NdotV, float NdotL, float NdotH, float HdotVorL,
 	float G = geometrySmithSchlickGGX(NdotL, NdotV, alpha);
 	
 	// Finally, solve our brdf and write out Ks
-	const float EPSILON = 0.0001;
-	vec3 specular = (D * F * G) / (4.0 * NdotV * NdotH/*NdotL*/ + EPSILON); // 4.0 apparently is the correct factor eventhough the original formula used pi
+	vec3 specular = (D * F * G) / (4.0 * NdotV * NdotH/*NdotL*/ + 0.0001); // 4.0 apparently is the correct factor eventhough the original formula used pi
 	Ks = F;
 	return specular;
 }
@@ -98,21 +96,36 @@ vec3 cookTorranceSpecular(float NdotV, float NdotL, float NdotH, float HdotVorL,
 void main() {
 	vec2 texCoord = tModelTexCoord;
 	
-	// Normal mapping
-	vec3 N = normalize(tNormal);
+	vec3 N;
+	{// Normal mapping
+		N = normalize(tNormal);
+		
+		// Get tangent and bitangent
+		vec3 T = normalize(tTangent);
+		vec3 B = normalize(tBitangent);
+		
+		// Construct tbn matrix
+		mat3 tbnMatrix = mat3(T, B, N);
+		
+		// Sample and transform normal
+		vec3 sampledNormal = texture(texMaterialNormal, texCoord.st).xyz * vec3(2.0) - 1.0;
+		N = normalize(tbnMatrix * sampledNormal);
+	}
 	
 	// Shade fragment
 	vec3 albedo = texture(texMaterialAlbedo, texCoord).rgb;
-	float roughness = 0.55;
-	float metalness = 0.0;
+	float roughness = 0.41;
+	float inverseMetalness = 1.0 - 0.0;
 	
 	vec3 V = normalize(tEyeDirWorldspace - tVertexWorldspace);
 	float NdotV = max(0.0, dot(N, V));
 	
 	vec3 radiance = vec3(0.0);
 	/* per light */ {
+		float lightAttenuation = 1.0;
+		
 		//vec3 L = normalize(vec3(0.2, 0.5, 0.4)); // DEBUG:
-		vec3 L = normalize(vec3(3.0, 3.0, 4.0) - tVertexWorldspace);
+		vec3 L = normalize(vec3(-3.0, 3.0, 4.0) - tVertexWorldspace);
 		vec3 H = normalize(V + L);
 		
 		//vec3 clampedDots = max(vec3(dot(N, L), dot(N, H), dot(H, L)), vec3(0.0));
@@ -120,15 +133,17 @@ void main() {
 		float NdotH = max(0.0, dot(N, H));
 		float HdotL = max(0.0, dot(H, L));
 		
-		vec3 lightIntensities = vec3(1.0, 1.0, 1.0);
+		//vec3 lightIntensities = vec3(1.0, 1.0, 1.0);
+		vec3 lightIntensities = vec3(1.0);
 		
 		// Specular: Cook-Torrance and a side of extra stuff, please
 		vec3 Ks;
-		vec3 specular = cookTorranceSpecular(NdotV, NdotL, NdotH, HdotL, albedo, roughness, metalness, Ks);
+		vec3 specular = cookTorranceSpecular(NdotV, NdotL, NdotH, HdotL, albedo, roughness, inverseMetalness, Ks);
 		
 		// Diffuse: Lambert
-		vec3 Kd = (1.0 - Ks) * (1.0 - metalness);
-		vec3 lambert = NdotL * albedo * lightIntensities;
+		vec3 Kd = (1.0 - Ks) * inverseMetalness;
+		vec3 rawDiffuse = albedo * lightIntensities * lightAttenuation;
+		vec3 lambert = NdotL * rawDiffuse;
 		
 		// Subsurface
 		float sssTranslucency = 0.83;
@@ -138,7 +153,8 @@ void main() {
 		radiance += (Kd * lambert) + subsurface + specular; // I'm not entirely sure, but the fresnel factor is already applied to specular in the specular term
 	}
 	
-	radiance += albedo * vec3(0.004, 0.005, 0.015);
+	// Ambient light
+	radiance += albedo * inverseMetalness * vec3(0.01);
 	
 	vec3 shadedFrag = radiance;
 	
@@ -296,31 +312,6 @@ void main() {
 	*/
 	
 	/*
-	// Normal mapping
-	vec3 T, B;
-	{
-		// Derivations of the fragment position
-		vec3 pos_dx = dFdx(tPositionWorldSpace.xyz);
-		vec3 pos_dy = dFdy(tPositionWorldSpace.xyz);
-		
-		// Derivations of the texture coordinate
-		vec2 texC_dx = dFdx(tModelTexCoord.st);
-		vec2 texC_dy = dFdy(tModelTexCoord.st);
-		
-		// Tangent vector and binormal vector
-		T = normalize(texC_dy.y * pos_dx - texC_dx.y * pos_dy);
-		B = normalize(texC_dx.x * pos_dy - texC_dy.x * pos_dx);
-	}
-	vec3 N = normalize(tNormal);
-//	vec3 T = normalize(tTangent);
-//	vec3 B = normalize(tBitangent);
-	mat3 normalMatrix = mat3(T, B, N);
-	
-	vec3 sampledNormal = 0.5 * texture(texMaterialNormal, tModelTexCoord.st).xyz + 0.5;
-	N = normalize(normalMatrix * sampledNormal);
-	*/
-	
-	/*
 	{// Blinn phong
 		vec3 L = normalize(vec3(0.2, 0.5, 0.4));
 		
@@ -344,6 +335,9 @@ void main() {
 		outFrag = shadedFrag;
 	}
 	*/
+	
+	// DEBUG:
+//	outFrag = N * 0.5 + 0.5;
 	
 	// Write hdr scene frag
 	outFrag = shadedFrag;

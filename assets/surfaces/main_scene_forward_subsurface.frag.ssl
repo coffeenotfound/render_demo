@@ -1,0 +1,353 @@
+#version 430 core
+#extension GL_ARB_derivative_control : require
+
+layout(binding = 1) uniform sampler2D texMaterialAlbedo;
+layout(binding = 2) uniform sampler2D texMaterialNormal;
+layout(binding = 4) uniform sampler2D texMaterialTransmission;
+
+in vec2 tModelTexCoord;
+in vec3 tNormal;
+in vec3 tTangent;
+in vec3 tBitangent;
+in vec3 tVertexWorldspace;
+in vec3 tEyeDirWorldspace;
+noperspective in vec3 tBaryCoord;
+flat in vec2 tBaryNormals[3];
+flat in vec2 tBaryScreenCoords[3];
+in vec3 tVertexColor;
+
+flat in float tFuckOffPrimitiveIDFuckingShitDoesnWorkIndex;
+
+layout(location = 0) out vec3 outFrag; // HDR GL_R11F_G11F_B10F
+layout(location = 1) out vec4 outEdgeHeuristic; // GL_RGBA8  // GL_RG16_SNORM
+
+vec3 separablesssTransmittance(vec2 modelTexCoord, float translucency, float sssWidth, vec3 worldPosition, vec3 worldNormal, vec3 lightVector, sampler2D transmissionTex) {
+	float scale = 8.25 * (1.0 - translucency) / sssWidth;
+	
+	// Shrink world position inwards to avoid artifacts
+	vec4 shrinkedPos = vec4(worldPosition - 0.005 * worldNormal, 1.0);
+	
+	// Sample transmission map
+	float sampledTransmission = texture(transmissionTex, modelTexCoord.st).x;
+//	float sampledTransmission = 1.0;
+	float d = scale * (1.0 - sampledTransmission); // TODO: Denormalize transmission map value via ramp
+	
+	// Calculate transmittance profile
+	float dd = -d * d;
+	vec3 profile = vec3(0.233, 0.455, 0.649) * exp(dd / 0.0064) +
+		vec3(0.100, 0.336, 0.344) * exp(dd / 0.0484) +
+		vec3(0.118, 0.198, 0.000) * exp(dd / 0.1870) +
+		vec3(0.113, 0.007, 0.007) * exp(dd / 0.5670) +
+		vec3(0.358, 0.004, 0.000) * exp(dd / 1.9900) +
+		vec3(0.078, 0.000, 0.000) * exp(dd / 7.4100);
+	
+	// Approximate transmitted light
+	return profile * clamp(0.3 + dot(lightVector, -worldNormal), 0.0, 1.0);
+}
+
+/**
+ * HdotVL can be either HdotV or HdotL
+ */
+vec3 fresnelSchlick(float HdotVorL, vec3 F0) {
+	float invHdotL = 1.0 - HdotVorL;
+	float Hdot2 = invHdotL*invHdotL;
+	float Hdot4 = Hdot2*Hdot2;
+	float Hdot5 = Hdot4*invHdotL;
+	return F0 + (1.0 - F0) * Hdot5;
+}
+
+float distributionGGXTrowbridge(float NdotH, float alpha) {
+	float alpha2 = alpha*alpha;
+	
+	float term = NdotH*NdotH * (alpha2 - 1.0) + 1.0;
+	return alpha2 / (3.141592 * term*term);
+}
+
+float geometrySmithSchlickGGX(float NdotL, float NdotV, float alpha) {
+	float k = 0.5 * alpha;
+	vec2 NdotLandV = vec2(NdotL, NdotV);
+	vec2 termsG1 = NdotLandV / (NdotLandV * (1.0 - k) + k); // Both components are a G1(v) term
+	return termsG1.x * termsG1.y;
+}
+
+vec3 cookTorranceSpecular(float NdotV, float NdotL, float NdotH, float HdotVorL, vec3 albedo, float roughness, float inverseMetalness, out vec3 Ks) {
+	float alpha = roughness*roughness;
+	
+	// Schlick F0
+	const float ior = 1.47; // 1.47 is pretty representative for all kinds of materials
+	float f = abs((1.0 - ior) / (1.0 + ior));
+	vec3 F0 = mix(albedo, vec3(f*f), inverseMetalness); // Lerp to albedo color for conductors
+	
+	// Fresnel term: Schlick Fresnel
+	vec3 F = fresnelSchlick(HdotVorL, F0);
+	
+	// Distribution term: GGX Trowbridge-Reitz
+	float D = distributionGGXTrowbridge(NdotH, alpha);
+	
+	// Geometry shadowing term: GGX approximation of Schlick approximation of Beckman as Smith term
+	float G = geometrySmithSchlickGGX(NdotL, NdotV, alpha);
+	
+	// Finally, solve our brdf and write out Ks
+	vec3 specular = (D * F * G) / (4.0 * NdotV * NdotH/*NdotL*/ + 0.0001); // 4.0 apparently is the correct factor eventhough the original formula used pi
+	Ks = F;
+	return specular;
+}
+
+void main() {
+	vec2 texCoord = tModelTexCoord;
+	
+	vec3 N;
+	{// Normal mapping
+		N = normalize(tNormal);
+		
+		// Get tangent and bitangent
+		vec3 T = normalize(tTangent);
+		vec3 B = normalize(tBitangent);
+		
+		// Construct tbn matrix
+		mat3 tbnMatrix = mat3(T, B, N);
+		
+		// Sample and transform normal
+		vec3 sampledNormal = texture(texMaterialNormal, texCoord.st).xyz * vec3(2.0) - 1.0;
+		N = normalize(tbnMatrix * sampledNormal);
+	}
+	
+	// Shade fragment
+	vec3 albedo = texture(texMaterialAlbedo, texCoord).rgb;
+	float roughness = 0.41;
+	float inverseMetalness = 1.0 - 0.0;
+	
+	vec3 V = normalize(tEyeDirWorldspace - tVertexWorldspace);
+	float NdotV = max(0.0, dot(N, V));
+	
+	vec3 radiance = vec3(0.0);
+	/* per light */ {
+		float lightAttenuation = 1.0;
+		
+		//vec3 L = normalize(vec3(0.2, 0.5, 0.4)); // DEBUG:
+		vec3 L = normalize(vec3(-3.0, 3.0, 4.0) - tVertexWorldspace);
+		vec3 H = normalize(V + L);
+		
+		//vec3 clampedDots = max(vec3(dot(N, L), dot(N, H), dot(H, L)), vec3(0.0));
+		float NdotL = max(0.0, dot(N, L));
+		float NdotH = max(0.0, dot(N, H));
+		float HdotL = max(0.0, dot(H, L));
+		
+		//vec3 lightIntensities = vec3(1.0, 1.0, 1.0);
+		vec3 lightIntensities = vec3(1.0);
+		
+		// Specular: Cook-Torrance and a side of extra stuff, please
+		vec3 Ks;
+		vec3 specular = cookTorranceSpecular(NdotV, NdotL, NdotH, HdotL, albedo, roughness, inverseMetalness, Ks);
+		
+		// Diffuse: Lambert
+		vec3 Kd = (1.0 - Ks) * inverseMetalness;
+		vec3 rawDiffuse = albedo * lightIntensities * lightAttenuation;
+		vec3 lambert = NdotL * rawDiffuse;
+		
+		// Subsurface
+		float sssTranslucency = 0.83;
+		float sssWidth = 0.012; // 0.012
+		vec3 subsurface = rawDiffuse * separablesssTransmittance(texCoord.st, sssTranslucency, 16.0*sssWidth, tVertexWorldspace.xyz, N, L, texMaterialTransmission);
+		
+		radiance += (Kd * lambert) + subsurface + specular; // I'm not entirely sure, but the fresnel factor is already applied to specular in the specular term
+	}
+	
+	// Ambient light
+	radiance += albedo * inverseMetalness * vec3(0.01);
+	
+	vec3 shadedFrag = radiance;
+	
+	/*
+	// Calculate edge heuristic
+	float minBary = min(tBaryCoord.x, min(tBaryCoord.y, tBaryCoord.z));
+	
+	vec3 baryDerivativeX = dFdxFine(tBaryCoord);
+	vec3 baryDerivativeY = dFdyFine(tBaryCoord);
+	vec3 baryWidthDerivative = fwidthFine(tBaryCoord);
+	
+	vec2 baryNormal;
+	float baryWidth;
+	if(tBaryCoord.x < tBaryCoord.y && tBaryCoord.x < tBaryCoord.z) {
+		baryNormal = vec2(baryDerivativeX[0], baryDerivativeY[0]);
+		baryWidth = baryWidthDerivative[0];
+	}
+	else if(tBaryCoord.y < tBaryCoord.x && tBaryCoord.y < tBaryCoord.z) {
+		baryNormal = vec2(baryDerivativeX[1], baryDerivativeY[1]);
+		baryWidth = baryWidthDerivative[1];
+	}
+	else {
+		baryNormal = vec2(baryDerivativeX[2], baryDerivativeY[2]);
+		baryWidth = baryWidthDerivative[2];
+	}
+	
+	// DEBUG:
+	float minEdgeDist = min(tBaryCoord.x, min(tBaryCoord.y, tBaryCoord.z));
+	
+	vec3 baryFactor = smoothstep(baryWidthDerivative, vec3(0.0), tBaryCoord.xyz);
+	vec3 barySelfFactor = smoothstep(baryWidthDerivative.xyz * 0.5, vec3(0.0), tBaryCoord.xyz);
+	vec3 nx = barySelfFactor * (baryDerivativeX.xyz / baryWidthDerivative.xyz);
+	vec3 ny = barySelfFactor * (baryDerivativeY.xyz / baryWidthDerivative.xyz);
+	
+	vec2 trendDirection = vec2(nx.x + nx.y + nx.z, ny.x + ny.y + ny.z);
+	float trendDirectionLength = length(trendDirection);
+	float trendConfidence = trendDirectionLength / (barySelfFactor.x + barySelfFactor.y + barySelfFactor.z);
+	 
+//	vec4 edgeCoeffs = mix(vec4(0.25), min(vec4(0.0), vec4(trendDirection, -trendDirection) / trendDirectionLength), trendConfidence);
+//	vec4 edgeCoeffs = min(vec4(0.0), vec4(trendDirection, -trendDirection) / trendDirectionLength);
+	
+	//outEdgeHeuristic = edgeCoeffs;
+//	outEdgeHeuristic = vec4(0.5);
+//	outEdgeHeuristic.x = 0.25;
+	
+	float edgeCoverageFactor = smoothstep(0.0, baryWidth*0.5*2, minBary);
+//	edgeCoverageFactor = mix(0.5, 1.0, edgeCoverageFactor);
+//	baryColor *= edgeCoverageFactor;
+//	baryColor = vec2(edgeCoverageFactor);
+	
+	// Write edge heuristic frag
+//	outEdgeHeuristic = normalize(baryNormal) * (1.0 - edgeCoverageFactor); // inverted edge distance normalized to 0..1 (actual range 0.5 to 1.5)
+	*/
+	
+	/*
+	{// New algorithm 2
+		vec3 baryCoord = tBaryCoord.xyz;
+		//vec3 baryDerivativeX = dFdxFine(tBaryCoord.xyz);
+		//vec3 baryDerivativeY = dFdyFine(tBaryCoord.xyz);
+		vec3 baryDerivativeWidth = fwidthFine(tBaryCoord.xyz);
+		
+		//float edgeDist0 = distance(gl_FragCoord.xy, tBaryScreenCoords[0]) / (1.0 - baryCoord[0]);
+		//float edgeDist1 = distance(gl_FragCoord.xy, tBaryScreenCoords[1]) / (1.0 - baryCoord[1]);
+		//float edgeDist2 = distance(gl_FragCoord.xy, tBaryScreenCoords[2]) / (1.0 - baryCoord[2]);
+		//vec3 baryEdgeWidths = vec3(edgeDist0, edgeDist1, edgeDist2);
+		
+		vec3 baryEdgeWidths = baryDerivativeWidth;
+		
+		//vec2 baryNormal0 = vec2(baryDerivativeX[0], baryDerivativeY[0]);
+		vec2 baryNormal0 = tBaryNormals[0];
+		vec2 n0 = step(vec2(0.5), abs(baryNormal0)) * sign(baryNormal0);
+		vec4 coeffs0 = max(vec4(0.0), vec4(n0.x, n0.y, -n0.x, -n0.y)) * smoothstep(baryEdgeWidths[0] * 0.5, 0.0, baryCoord[0]);
+		
+		//vec2 baryNormal1 = vec2(baryDerivativeX[1], baryDerivativeY[1]);
+		vec2 baryNormal1 = tBaryNormals[1];
+		vec2 n1 = step(vec2(0.5), abs(baryNormal1)) * sign(baryNormal1);
+		vec4 coeffs1 = max(vec4(0.0), vec4(n1.x, n1.y, -n1.x, -n1.y)) * smoothstep(baryEdgeWidths[1] * 0.5, 0.0, baryCoord[1]);
+		
+		//vec2 baryNormal2 = vec2(baryDerivativeX[2], baryDerivativeY[2]);
+		vec2 baryNormal2 = tBaryNormals[2];
+		vec2 n2 = step(vec2(0.5), abs(baryNormal2)) * sign(baryNormal2);
+		vec4 coeffs2 = max(vec4(0.0), vec4(n2.x, n2.y, -n2.x, -n2.y)) * smoothstep(baryEdgeWidths[2] * 0.5, 0.0, baryCoord[2]);
+		
+		vec4 actualCoeffs = max(coeffs0, max(coeffs1, coeffs2));
+		outEdgeHeuristic = actualCoeffs;
+		
+		//outFrag = vec3(1.0 - baryEdgeWidths[0]);
+		//outFrag = vec3(smoothstep(0.5, 0.0, baryEdgeWidths[0]));
+		//outFrag = vec3(smoothstep(0.5, 0.0, edgeDist0));
+		//outFrag = vec3(smoothstep(baryDerivativeWidth[0] * 0.5, 0.0, baryCoord[0]));
+	}
+	*/
+	
+	/*
+	{// Test 3
+		vec3 baryCoord = tBaryCoord.xyz;
+		vec3 baryDerivativeX = dFdxFine(tBaryCoord.xyz);
+		vec3 baryDerivativeY = dFdyFine(tBaryCoord.xyz);
+		vec3 baryDerivativeWidth = fwidthFine(tBaryCoord.xyz);
+		
+		vec2 baryNormal;
+		if(baryCoord.x < baryCoord.y && baryCoord.x < baryCoord.z) {
+			//baryNormal = vec2(baryDerivativeX[0], baryDerivativeY[0]);
+			baryNormal = tBaryNormals[0];
+		}
+		else if(baryCoord.y < baryCoord.x && baryCoord.y < baryCoord.z) {
+			//baryNormal = vec2(baryDerivativeX[1], baryDerivativeY[1]);
+			baryNormal = tBaryNormals[1];
+		}
+		else {
+			//baryNormal = vec2(baryDerivativeX[2], baryDerivativeY[2]);
+			baryNormal = tBaryNormals[2];
+		}
+		
+		vec3 coeffs = smoothstep(baryDerivativeWidth.xyz * 0.5, vec3(0.0), baryCoord.xyz);
+		outEdgeHeuristic.x = max(coeffs[0], max(coeffs[1], coeffs[2]));
+		outEdgeHeuristic.yz = normalize(baryNormal) * 0.5 + 0.5;
+		
+		//outFrag = vec3(normalize(baryNormal.xy) * 0.5 + 0.5, tFuckOffPrimitiveIDFuckingShitDoesnWorkIndex);
+	}
+	*/
+	
+	/*
+	{// New algorithm
+		vec3 baryCoord = tBaryCoord;
+//		vec3 baryDerivativeX = dFdxFine(baryCoord);
+//		vec3 baryDerivativeY = dFdyFine(baryCoord);
+		vec3 baryDerivativeWidth = fwidthFine(baryCoord);
+		
+//		vec2 n0 = -vec2(baryDerivativeX[0], baryDerivativeY[0]) / baryDerivativeWidth[0];
+		vec2 n0 = tBaryNormals[0];
+		vec4 coeffs0 = max(vec4(0.0), vec4(n0.x, n0.y, -n0.x, -n0.y)) * smoothstep(baryDerivativeWidth[0] * 0.5, 0, baryCoord[0]);
+		
+//		vec2 n1 = -vec2(baryDerivativeX[1], baryDerivativeY[1]) / baryDerivativeWidth[1];
+		vec2 n1 = tBaryNormals[1];
+		vec4 coeffs1 = max(vec4(0.0), vec4(n1.x, n1.y, -n1.x, -n1.y)) * smoothstep(baryDerivativeWidth[1] * 0.5, 0, baryCoord[1]);
+		
+//		vec2 n2 = -vec2(baryDerivativeX[2], baryDerivativeY[2]) / baryDerivativeWidth[2];
+		vec2 n2 = tBaryNormals[2];
+		vec4 coeffs2 = max(vec4(0.0), vec4(n2.x, n2.y, -n2.x, -n2.y)) * smoothstep(baryDerivativeWidth[2] * 0.5, 0, baryCoord[2]);
+		
+		vec4 actualCoeffs = max(coeffs0, max(coeffs1, coeffs2));
+		
+		// Write coeffs out
+		outEdgeHeuristic = actualCoeffs;
+	}
+	*/
+	
+//	baryColor = vec2(1.0 - edgeCoverageFactor, 1.0);
+	/*
+	baryColor = vec2(0.25);
+	if(minBary < baryWidth*0.5) {
+		baryColor = vec2(1.0);
+	}
+	*/
+	
+	/*
+	{// Blinn phong
+		vec3 L = normalize(vec3(0.2, 0.5, 0.4));
+		
+		const float specularHardness = 100.0;
+		const vec3 lightColor = vec3(1.0, 1.0, 1.0);
+		const vec3 ambient = vec3(0.025);
+		
+		// Specular
+		vec3 V = tPositionWorldSpace;
+		vec3 H = normalize(L + V);
+		float NdotH = dot(N, H);
+		float specularFactor = pow(max(0.0, NdotH), specularHardness);
+		vec3 specular = specularFactor * lightColor;
+		
+		// Diffuse
+		float NdotL = dot(N, L);
+		float diffuseFactor =  max(0.0, max(0.0, NdotL) - specularFactor);
+		vec3 diffuse = (ambient + vec3(diffuseFactor)) * texture(texMaterialAlbedo, tModelTexCoord.st).rgb;
+		
+		vec3 shadedFrag = diffuse + specular;
+		outFrag = shadedFrag;
+	}
+	*/
+	
+	// DEBUG:
+//	outFrag = N * 0.5 + 0.5;
+	
+	// Write hdr scene frag
+	outFrag = shadedFrag;
+	
+//	outFrag = tVertexColor;
+//	outFrag = vec3(1.0);
+//	outFrag.z = tFuckOffPrimitiveIDFuckingShitDoesnWorkIndex;
+	
+//	outFrag = vec3(edgeCoeffs.xyz);
+//	outFrag = vec3(max(barySelfFactor.x, max(barySelfFactor.y, barySelfFactor.z)), 1.0 - trendConfidence, 0.0);
+//	outFrag = vec3(trendDirection * 0.5 + 0.5, 0.0);
+//	outFrag = vec3(trendConfidence);
+}

@@ -1,0 +1,13 @@
+@glslversion 430 core
+@shadertype vertex
+@namespace seperable_sss_resolve.vert
+
+@import oversized_screen_triangle
+
+out vec2 vScreenTexCoord;
+
+@hide
+void main() {
+	gl_Position = calcOversizedScreenTriangleCoord(gl_VertexID, vScreenTexCoord);
+}
+@end

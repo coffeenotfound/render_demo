@@ -1,0 +1,16 @@
+Program (
+	id: "separable_sss_resolve",
+	includes: [
+		"/shaders/oversized_screen_triangle.incl.ssl"
+	],
+	shaders: [
+		Shader ( // The class name 'Shader' is unnecessary here, but we'll keep it for good measure
+			stage: Vertex,
+			source: "separable_sss_resolve.vert.ssl"
+		),
+		Shader (
+			stage: Fragment,
+			source: "separable_sss_resolve.frag.ssl"
+		),
+	]
+)

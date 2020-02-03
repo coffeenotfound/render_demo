@@ -1,38 +1,7 @@
-#version 430 core
 
-#define SEPARABLE_SSS_KERNEL_SIZE 7
-
-#define FXAA_ENABLE false
-
-layout(binding = 0) uniform sampler2D texSceneHDR;
-layout(binding = 1) uniform sampler2D texEHAAEdgeHeuristic;
-
-uniform vec4 uSeparableSSSKernel[SEPARABLE_SSS_KERNEL_SIZE] = {
-	vec4(0.62899023, 0.75196564, 0.8388238, 0),
-	vec4(0.0070557906, 0.00021022449, 0.000051764513, -2),
-	vec4(0.047199063, 0.010689508, 0.004010269, -0.8888888),
-	vec4(0.10899024, 0.16196562, 0.11882374, 0),
-	vec4(0.15350983, 0.0642693, 0.03422845, 0.22222227),
-	vec4(0.04719904, 0.010689498, 0.0040102643, 0.8888891),
-	vec4(0.0070557883, 0.00021022448, 0.000051764502, 2),
-};
-
-in vec2 vScreenTexCoord;
-
-out vec3 outFragProcessed;
-
-/* passAxis = vec2(1.0, 0.0) (first pass), vec2(0.0, 1.0) (second pass) */
-void seperablesssResolve(vec2 screenTexCoord, float sssWidth, vec2 passAxis) {
-	
-}
-
-vec3 tonemapFrag(vec3 fragHDR) {
-	vec3 mappedFrag = pow(fragHDR, vec3(1.0/2.2)); // Simple gamma correction
-	return mappedFrag;
-}
-
+// @Deprecated
 float ungammaLuma(vec3 rgb) {
-	rgb = tonemapFrag(rgb);
+	rgb = tonemapFrag(rgb, 1.0);
 	const vec3 A = vec3(0.299, 0.587, 0.114);
 	return sqrt(dot(rgb, A));
 }
@@ -244,67 +213,4 @@ vec3 resolveFXAA(vec3 inputFrag, vec2 screenUV, sampler2D sceneTex) {
 		vec3 finalFXAAFrag = texture(sceneTex, finalUV).rgb;
 		return finalFXAAFrag;
 	}
-}
-
-void main() {
-	// Sample scene frag
-	vec3 sceneFragHDR = texture(texSceneHDR, vScreenTexCoord.st).rgb;
-	
-	{// New algorithm
-		// PROBLEM #1: We can still sample our own triangle by accident on slight angles
-		// PROBLEM #2: How to blend pulled samples together? (Possibly related to the problem #1)
-		
-		const vec2 invTexSize = 1.0 / vec2(textureSize(texSceneHDR, 0));
-		vec4 edgeCoeffs = texture(texEHAAEdgeHeuristic, vScreenTexCoord.st).xyzw;
-		
-		vec4 adjacentCoverageFactors = normalize(edgeCoeffs.xyzw);
-		
-		float maxCoeff = max(max(edgeCoeffs[0], edgeCoeffs[1]), max(edgeCoeffs[2], edgeCoeffs[3]));
-		if(maxCoeff > 0.0001) {
-			vec3 pulledFrag = vec3(0.0);
-			pulledFrag += texture(texSceneHDR, vScreenTexCoord + vec2(invTexSize.x, 0.0)).rgb * adjacentCoverageFactors[0];
-			pulledFrag += texture(texSceneHDR, vScreenTexCoord + vec2(0.0, invTexSize.y)).rgb * adjacentCoverageFactors[1];
-			pulledFrag += texture(texSceneHDR, vScreenTexCoord - vec2(invTexSize.x, 0.0)).rgb * adjacentCoverageFactors[2];
-			pulledFrag += texture(texSceneHDR, vScreenTexCoord - vec2(0.0, invTexSize.y)).rgb * adjacentCoverageFactors[3];
-			
-	//		sceneFragHDR = mix(sceneFragHDR, pulledFrag, maxCoeff);
-		}
-		
-		// DEBUG:
-//		frag = vec3(edgeCoeffs.xyz);
-	}
-	
-	/*
-	{// DEBUG:
-		vec2 invTexSize = 1.0 / vec2(textureSize(texSceneHDR, 0));
-		
-		vec4 ehaaFrag = texture(texEHAAEdgeHeuristic, vScreenTexCoord.st).xyzw;
-		vec2 normal = normalize(ehaaFrag.yz * 2.0 - 1.0);
-		
-		vec2 sampleNormal = sign(normal) * step(vec2(0.5), abs(normal));
-		
-		vec2 sampleOffset = invTexSize * sampleNormal;
-		vec3 pulledFrag = texture(texSceneHDR, vScreenTexCoord + sampleOffset).rgb;
-		
-		sceneFragHDR = mix(tonemapFrag(sceneFragHDR), tonemapFrag(pulledFrag), ehaaFrag.x);
-		//sceneFragHDR = vec3(sampleNormal * 0.5 + 0.5, 0.0);
-	}
-	*/
-	
-	{// Resolve separable sss
-	}
-	
-	// Tone map and gamma correct fragment
-	vec3 tonemappedFrag;
-	
-	// Do fxaa
-	#if FXAA_ENABLE
-		tonemappedFrag = tonemapFrag(resolveFXAA(sceneFragHDR, vScreenTexCoord.st, texSceneHDR));
-	#else
-		tonemappedFrag = tonemapFrag(sceneFragHDR);
-//		tonemappedFrag = sceneFragHDR;
-	#endif
-	
-	// Write final processed frag
-	outFragProcessed = tonemappedFrag;
 }

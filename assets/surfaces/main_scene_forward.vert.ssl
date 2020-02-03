@@ -7,6 +7,7 @@ uniform mat4 uMatrixModel;
 layout(location = 0) in vec3 inVertex;
 layout(location = 1) in vec2 inTexCoord;
 layout(location = 2) in vec3 inNormal;
+layout(location = 3) in vec4 inTangent;
 //layout(location = 1) in uint inBarycentricIndex;
 //layout(location = 2) in vec3 inColor;
 
@@ -39,10 +40,16 @@ void main() {
 //	tBaryCoord = vec3(0.0);
 //	tVertexColor = vec3(1.0);
 	
-	vModelTexCoord = vec2(inTexCoord.s, 1.0 - inTexCoord.t);
-	vec4 homogenousNormal = transpose(inverse(uMatrixModel)) * vec4(inNormal.xyz, 1.0);
-	vNormal = homogenousNormal.xyz / homogenousNormal.w;
-//	vVertexColor = vec3(0.0, 1.0, 0.5);
+	// DEBUG: Flip tex coords for now
+	vModelTexCoord = vec2(1.0 - inTexCoord.s, 1.0 - inTexCoord.t);
+	
+	// Calc normal, tangent and bitangent
+	//mat3 normalMatrix = transpose(inverse(mat3(uMatrixModel)));
+	mat3 normalMatrix = mat3(1.0);
+	
+	vNormal = normalMatrix * inNormal.xyz;
+	vTangent = -normalMatrix * inTangent.xyz; // For some reason we need to flip the tangent and bitangent for it to look correctly
+	vBitangent = -cross(vNormal, vTangent) * inTangent.w;
 	
 	//vec4 eyeDirHomogenous = transpose(inverse(uMatrixViewProjection)) * vec4(vec3(0.0, 0.0, 1.0), 1.0);
 	vec4 worldspaceVertex = uMatrixModel * vec4(inVertex.xyz, 1.0);

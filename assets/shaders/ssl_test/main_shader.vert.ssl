@@ -1,0 +1,13 @@
+@glslversion 430 core
+@namespace test.mainshader
+
+@exportfunc
+float approximateLightTransport(sampler2D transmissionTex, vec2 texCoord, float scale) {
+	float transmission = texture(transmissionTex, texCoord.st).r;
+	return transmission * scale;
+}
+@endexport
+
+void main() {
+	
+}
