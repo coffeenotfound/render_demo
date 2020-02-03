@@ -82,7 +82,7 @@ impl Texture {
 		// Generate mipmaps
 		unsafe {
 			gl::TextureParameteri(texture.texture_gl(), gl::TEXTURE_MIN_FILTER, gl::LINEAR_MIPMAP_LINEAR as gl::int);
-			gl::TextureParameteri(texture.texture_gl(), gl::TEXTURE_MAG_FILTER, gl::LINEAR_MIPMAP_LINEAR as gl::int);
+			gl::TextureParameteri(texture.texture_gl(), gl::TEXTURE_MAG_FILTER, gl::LINEAR as gl::int);
 			
 			gl::GenerateTextureMipmap(texture.texture_gl());
 		}
