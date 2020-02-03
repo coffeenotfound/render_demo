@@ -1,10 +1,7 @@
 use gl_bindings::gl;
 use std::cell::RefCell;
-use std::rc::Rc;
-use cgmath::{Rad, Deg};
-use crate::render::{RenderSubsystem, ReconfigureEvent, Framebuffer, Texture, ShaderProgram, AttachmentPoint, FramebufferAttachment, ImageFormat};
-use crate::demo::demo_instance;
-use crate::utils::lazy_option::Lazy;
+use cgmath::{Rad};
+use crate::render::{RenderSubsystem, ReconfigureEvent, Framebuffer, Texture, AttachmentPoint, FramebufferAttachment, ImageFormat};
 use crate::render::shader::{UniformLocationCache};
 use crate::render::shader::managed::{ManagedProgram};
 use crate::asset::AssetPathBuf;
