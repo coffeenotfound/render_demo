@@ -214,10 +214,9 @@ impl RenderGlobal {
 			gl::Disable(gl::FRAMEBUFFER_SRGB);
 			gl::Disable(gl::BLEND);
 			
+			gl::Enable(gl::CULL_FACE);
 			gl::FrontFace(gl::CCW);
-//			gl::Enable(gl::CULL_FACE);
-			gl::Disable(gl::CULL_FACE);
-			gl::CullFace(gl::BACK);
+			gl::CullFace(gl::FRONT); // For some reason we need to cull FRONT. This might be due to reverse-z flipping the winding order?
 			
 			gl::Enable(gl::DEPTH_TEST);
 			
