@@ -111,14 +111,16 @@ impl Demo {
 		};
 		
 		{// DEBUG: Test ssss kernel gen
-			let mut kernel_gen = SubsurfaceKernelGenerator::new(7, DEFAULT_HUMAN_SKIN_FALLOFF_FACTORS, DEFAULT_HUMAN_SKIN_STRENGTH_FACTORS);
+			let mut kernel_gen = SubsurfaceKernelGenerator::new(21, 2.5, DEFAULT_HUMAN_SKIN_FALLOFF_FACTORS, DEFAULT_HUMAN_SKIN_STRENGTH_FACTORS);
 			let ssss_kernel = kernel_gen.generate_kernel();
 			
-			println!("ssss kernel = {{");
-			for i in 0..ssss_kernel.kernel_size() { 
+			println!("#define SSSS_KERNEL_RANGE {:.2}", ssss_kernel.kernel_range);
+			println!("#define SSSS_KERNEL_NUM_SAMPLES {}", ssss_kernel.num_samples());
+			println!("vec4 SSSS_KERNEL[] = {{");
+			for i in 0..ssss_kernel.num_samples() { 
 				let sample = ssss_kernel.as_slice()[i as usize];
 				
-				println!("vec4({}, {}, {}, {}),", sample.x, sample.y, sample.z, sample.w);
+				println!("	vec4({:.6}, {:.6}, {:.6}, {:.6}),", sample.x, sample.y, sample.z, sample.w);
 			}
 			println!("}}");
 			

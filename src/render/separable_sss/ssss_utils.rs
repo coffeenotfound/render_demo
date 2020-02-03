@@ -30,7 +30,8 @@ impl SubsurfaceStrengthFactors {
 }
 
 pub struct SubsurfaceKernel {
-	coefficients: Vec<Vector4<f32>>,
+	pub coefficients: Vec<Vector4<f32>>,
+	pub kernel_range: f32,
 }
 
 impl SubsurfaceKernel {
@@ -42,21 +43,23 @@ impl SubsurfaceKernel {
 		self.coefficients.as_mut_slice()
 	}
 	
-	pub fn kernel_size(&self) -> u32 {
+	pub fn num_samples(&self) -> u32 {
 		self.coefficients.len() as u32
 	}
 	
-	pub fn new(coefficients: Vec<Vector4<f32>>) -> SubsurfaceKernel {
+	pub fn new(coefficients: Vec<Vector4<f32>>, kernel_range: f32) -> SubsurfaceKernel {
 		SubsurfaceKernel {
-			coefficients
+			coefficients,
+			kernel_range,
 		}
 	}
 }
 
 pub struct SubsurfaceKernelGenerator {
-	kernel_size: u32,
-	falloff_factors: SubsurfaceFalloffFactors,
-	strength_factors: SubsurfaceStrengthFactors,
+	pub kernel_size: u32,
+	pub important_sampling_exponent: f32,
+	pub falloff_factors: SubsurfaceFalloffFactors,
+	pub strength_factors: SubsurfaceStrengthFactors,
 }
 
 impl SubsurfaceKernelGenerator {
@@ -84,9 +87,9 @@ impl SubsurfaceKernelGenerator {
 		}
 		
 		let range: f32 = if self.kernel_size > 20 {3.0} else {2.0};
-		let exponent: f32 = 2.0;
+		let exponent: f32 = self.important_sampling_exponent; // 2.0 is standard, 2.5 might be even better, 3.0 doesn't look too good
 		
-		// Calculate the kernel offset
+		// Calculate the kernel offsets
 		let step = 2.0f32 * range / (self.kernel_size - 1) as f32;
 		for i in 0..self.kernel_size as usize {
 			let o = -range + (i as f32) * step;
@@ -141,12 +144,13 @@ impl SubsurfaceKernelGenerator {
 		}
 		
 		// Return kernel
-		SubsurfaceKernel::new(coeffs)
+		SubsurfaceKernel::new(coeffs, range)
 	}
 	
-	pub fn new(kernel_size: u32, falloff_factors: SubsurfaceFalloffFactors, strength_factors: SubsurfaceStrengthFactors) -> SubsurfaceKernelGenerator {
+	pub fn new(kernel_size: u32, important_sampling_exponent: f32, falloff_factors: SubsurfaceFalloffFactors, strength_factors: SubsurfaceStrengthFactors) -> SubsurfaceKernelGenerator {
 		SubsurfaceKernelGenerator {
 			kernel_size,
+			important_sampling_exponent,
 			falloff_factors,
 			strength_factors
 		}
