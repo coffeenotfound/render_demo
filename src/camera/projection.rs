@@ -1,6 +1,7 @@
 use cgmath::{Matrix4, Rad, SquareMatrix, Zero};
+use std::any::{Any};
 
-pub trait CameraProjection {
+pub trait CameraProjection: Any + 'static {
 	fn projection_matrix(&self, viewport_size: (u32, u32)) -> Matrix4<f32>;
 	
 	/// This is dumb but downcasting trait objects is even dumber
@@ -85,3 +86,7 @@ impl CameraProjection for PerspectiveProjection {
 		(self.near_z, self.far_z)
 	}
 }
+
+//pub trait ConcreteDowncast {
+////	fn downcast_ref<T, U>(self: &dyn T) -> &U;
+//}
