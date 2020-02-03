@@ -1,3 +1,5 @@
+#![feature(str_strip)]
+
 pub mod demo;
 pub mod utils;
 pub mod render;
