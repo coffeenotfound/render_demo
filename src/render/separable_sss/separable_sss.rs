@@ -5,12 +5,16 @@ use cgmath::{Rad, Deg};
 use crate::render::{RenderSubsystem, ReconfigureEvent, Framebuffer, Texture, ShaderProgram, AttachmentPoint, FramebufferAttachment, ImageFormat};
 use crate::demo::demo_instance;
 use crate::utils::lazy_option::Lazy;
+use crate::render::shader::{UniformLocationCache};
+use crate::render::shader::managed::{ManagedProgram};
+use crate::asset::AssetPathBuf;
 
 pub struct SeparableSSSSubsystem {
 	pub fbo_resolve_intermediate: Framebuffer,
 	pub fbo_resolve_final: Framebuffer,
 	
-	pub program_sss_resolve: Option<Rc<RefCell<ShaderProgram>>>,
+	pub program_sss_resolve: /*Rc<RefCell<*/ManagedProgram/*>>*/,
+	pub uniforms_sss_resolve: UniformsSSSResolve,
 }
 
 impl SeparableSSSSubsystem {
@@ -19,7 +23,13 @@ impl SeparableSSSSubsystem {
 			fbo_resolve_intermediate: Framebuffer::new(0, 0),
 			fbo_resolve_final: Framebuffer::new(0, 0),
 			
-			program_sss_resolve: None,
+			program_sss_resolve: /*Rc::new(RefCell::new(*/ManagedProgram::new(Some(AssetPathBuf::from("/shaders/separable_sss_resolve.program")))/*))*/,
+			uniforms_sss_resolve: UniformsSSSResolve {
+				global_sss_width: UniformLocationCache::new("uGlobalSSSWidth"),
+				separable_pass_dir: UniformLocationCache::new("uSeparablePassDir"),
+				distance_to_projection_window: UniformLocationCache::new("uDistanceToProjectionWindow"),
+				camera_depth_planes: UniformLocationCache::new("uCameraDepthPlanes"),
+			}
 		}
 	}
 	
@@ -32,15 +42,25 @@ impl SeparableSSSSubsystem {
 			
 			gl::DisableVertexAttribArray(0);
 			
+			// Compile shader
+			let resolve_shader = &mut self.program_sss_resolve;
+			if resolve_shader.needs_recompile() {
+				resolve_shader.do_recompile();
+			}
+			
 			// Bind shader
-			let resolve_shader = RefCell::borrow(self.program_sss_resolve.need());
-			gl::UseProgram(resolve_shader.program_gl());
+			let resolve_shader = &resolve_shader.program().unwrap();
+			let resolve_shader_gl = resolve_shader.program_gl().unwrap();
+			gl::UseProgram(resolve_shader_gl);
 			
 			// Upload uniform params
-			gl::Uniform1f(gl::GetUniformLocation(resolve_shader.program_gl(), "uCameraFovyRad\0".as_ptr() as *const gl::char), camera_fovy.0);
-			gl::Uniform2f(gl::GetUniformLocation(resolve_shader.program_gl(), "uCameraDepthPlanes\0".as_ptr() as *const gl::char), depth_planes.0, depth_planes.1);
+//			gl::Uniform1f(self.uniforms_sss_resolve.distance_to_projection_window.get(resolve_shader_gl), camera_fovy.0);
+			gl::Uniform1f(self.uniforms_sss_resolve.distance_to_projection_window.get(resolve_shader_gl).unwrap(), 1.0 / f32::tan(0.5 * camera_fovy.0));
+//			gl::Uniform2f(gl::GetUniformLocation(resolve_shader.program_gl(), "uCameraDepthPlanes\0".as_ptr() as *const gl::char), depth_planes.0, depth_planes.1);
+			gl::Uniform2f(self.uniforms_sss_resolve.camera_depth_planes.get(resolve_shader_gl).unwrap(), depth_planes.0, depth_planes.1);
 			
-			let pass_dir_uniform_location = gl::GetUniformLocation(resolve_shader.program_gl(), "uSeperablePassDir\0".as_ptr() as *const gl::char);
+//			let pass_dir_uniform_location = gl::GetUniformLocation(resolve_shader.program_gl(), "uSeperablePassDir\0".as_ptr() as *const gl::char);
+			let pass_dir_uniform_location = self.uniforms_sss_resolve.separable_pass_dir.get(resolve_shader_gl).unwrap();
 			
 			// Bind depth texture
 			gl::BindTextureUnit(1, scene_depth_rt.texture_gl());
@@ -77,22 +97,21 @@ impl SeparableSSSSubsystem {
 	}
 	
 	pub fn reload_shaders(&mut self) {
+		// Reload shader from asset
+		self.program_sss_resolve.reload_from_asset().expect("Failed to reload sss resolve shader from asset");
+		
+//		self.program_sss_resolve = Some({
+//			let mut s = ShaderProgram::new_from_file(
+//				&asset_folder.join("shaders/separable_sss_resolve.vert.glsl"),
+//				&asset_folder.join("shaders/separable_sss_resolve.frag.glsl"),
+//				None,
+//			);
+//			s.compile();
+//			Rc::new(RefCell::new(s))
+//		});
+		
 		// DEBUG: Log
 		println!("Reloaded ssss resolve shader");
-		
-		// DEBUG: Get asset folder
-		let asset_folder = demo_instance().asset_folder.as_ref().unwrap().as_path();
-		
-		// Load shaders
-		self.program_sss_resolve = Some({
-			let mut s = ShaderProgram::new_from_file(
-				&asset_folder.join("shaders/separable_sss_resolve.vert.glsl"),
-				&asset_folder.join("shaders/separable_sss_resolve.frag.glsl"),
-				None,
-			);
-			s.compile();
-			Rc::new(RefCell::new(s))
-		});
 	}
 }
 
@@ -127,13 +146,20 @@ impl RenderSubsystem for SeparableSSSSubsystem {
 		fbo.resize(event.resolution.0, event.resolution.1);
 		fbo.allocate();
 		
-		// Delete old shader
-		if let Some(program) = self.program_sss_resolve.take() {
-			let mut program = RefCell::borrow_mut(&program);
-			program.delete();
-		}
+//		// Delete old shader
+//		if let Some(program) = self.program_sss_resolve.take() {
+//			let mut program = RefCell::borrow_mut(&program);
+//			program.delete();
+//		}
 		
 		// Load shaders
 		self.reload_shaders();
 	}
+}
+
+pub struct UniformsSSSResolve {
+	pub global_sss_width: UniformLocationCache, // float
+	pub separable_pass_dir: UniformLocationCache, // vec2
+	pub distance_to_projection_window: UniformLocationCache, // float
+	pub camera_depth_planes: UniformLocationCache, // vec2
 }

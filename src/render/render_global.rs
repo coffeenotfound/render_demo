@@ -9,6 +9,8 @@ use std::ops::Deref;
 use crate::demo;
 use std::sync::Mutex;
 use crate::render::separable_sss::SeparableSSSSubsystem;
+use crate::render::shader::managed::ManagedProgram;
+use crate::asset::AssetPathBuf;
 use crate::camera::{PerspectiveProjection, CameraProjection};
 
 pub struct RenderGlobal {
@@ -19,8 +21,8 @@ pub struct RenderGlobal {
 	
 	framebuffer_scene_hdr_ehaa: Option<Rc<RefCell<Framebuffer>>>,
 	
-	program_ehaa_scene: Option<Rc<RefCell<ShaderProgram>>>,
-	program_post_resolve: Option<Rc<RefCell<ShaderProgram>>>,
+	program_ehaa_scene: ManagedProgram,
+	program_post_composite: ManagedProgram,
 	
 	frametime_query_object_gl: gl::uint,
 	
@@ -37,8 +39,8 @@ impl RenderGlobal {
 			
 			framebuffer_scene_hdr_ehaa: None,
 			
-			program_ehaa_scene: None,
-			program_post_resolve: None,
+			program_ehaa_scene: ManagedProgram::new(Some(AssetPathBuf::from("/shaders/legacy/main_scene_forward.program"))),
+			program_post_composite: ManagedProgram::new(Some(AssetPathBuf::from("/shaders/post_composite.program"))),
 			
 			frametime_query_object_gl: 0,
 			
@@ -112,42 +114,48 @@ impl RenderGlobal {
 	}
 	
 	fn reload_shaders(&mut self) {
-		let asset_folder = demo::demo_instance().asset_folder.as_mut().unwrap();
+//		let asset_folder = demo::demo_instance().asset_folder.as_mut().unwrap();
 		
 		// Log
 		println!("Reloading shaders!");
 		
-		// Delete old shaders
-		if let Some(program) = self.program_ehaa_scene.take() {
-			let mut program = RefCell::borrow_mut(&program);
-			program.delete();
-		}
-		if let Some(program) = self.program_post_resolve.take() {
-			let mut program = RefCell::borrow_mut(&program);
-			program.delete();
-		}
+		// Reload shaders from asset
+		self.program_ehaa_scene.reload_from_asset().expect("Failed to reload scene shader from asset");
+		self.program_post_composite.reload_from_asset().expect("Failed to reload post composite shader from asset");
 		
-		// Load shaders
-		self.program_ehaa_scene = Some({
-			let mut s = ShaderProgram::new_from_file(
-				&asset_folder.join("shaders/scene_ehaa.vert.glsl"),
-				&asset_folder.join("shaders/scene_ehaa.frag.glsl"),
-				Some(&asset_folder.join("shaders/scene_ehaa.tesseval.glsl"))
+//		// Delete old shaders
+//		if let Some(program) = self.program_ehaa_scene.take() {
+//			let mut program = RefCell::borrow_mut(&program);
+//			program.delete();
+//		}
+//		if let Some(program) = self.program_post_resolve.take() {
+//			let mut program = RefCell::borrow_mut(&program);
+//			program.delete();
+//		}
+		
+		// Reload shader from assets
+		
+		
+//		// Load shaders
+//		self.program_ehaa_scene = Some({
+//			let mut s = ShaderProgram::new_from_file(
+//				&asset_folder.join("shaders/scene_ehaa.vert.glsl"),
+//				&asset_folder.join("shaders/scene_ehaa.frag.glsl"),
+//				Some(&asset_folder.join("shaders/scene_ehaa.tesseval.glsl"))
+////				None
+//			);
+//			s.compile();
+//			Rc::new(RefCell::new(s))
+//		});
+//		self.program_post_resolve = Some({
+//			let mut s = ShaderProgram::new_from_file(
+//				&asset_folder.join("shaders/post_resolve.vert.glsl"),
+//				&asset_folder.join("shaders/post_resolve.frag.glsl"),
 //				None
-			);
-			s.compile();
-			Rc::new(RefCell::new(s))
-		});
-		self.program_post_resolve = Some({
-			let mut s = ShaderProgram::new_from_file(
-				&asset_folder.join("shaders/post_resolve.vert.glsl"),
-				&asset_folder.join("shaders/post_resolve.frag.glsl"),
-				None
-			);
-			s.compile();
-			Rc::new(RefCell::new(s))
-		});
-		
+//			);
+//			s.compile();
+//			Rc::new(RefCell::new(s))
+//		});
 		// Reload subsystem shaders
 		self.separable_sss_system.reload_shaders();
 	}
@@ -195,6 +203,13 @@ impl RenderGlobal {
 		
 		let viewprojection_matrix = cam_state.projection_matrix * cam_state.view_matrix;
 		
+		// Recompile shaders
+		if self.program_ehaa_scene.needs_recompile() {
+			self.program_ehaa_scene.do_recompile();
+		}
+		if self.program_post_composite.needs_recompile() {
+			self.program_post_composite.do_recompile();
+		}
 		unsafe {
 			gl::Disable(gl::FRAMEBUFFER_SRGB);
 			gl::Disable(gl::BLEND);
@@ -213,8 +228,9 @@ impl RenderGlobal {
 			gl::DepthRange(0.0, 1.0); // Standard (non-inversed) depth range, we use a reverse-z projection matrix instead
 			
 			// Use scene shader
-			let scene_shader = RefCell::borrow(&self.program_ehaa_scene.need());
-			gl::UseProgram(scene_shader.program_gl());
+			let scene_shader = self.program_ehaa_scene.program().unwrap();
+			let scene_shader_gl = scene_shader.program_gl().unwrap();
+			gl::UseProgram(scene_shader_gl);
 			
 			// Bind scene framebuffer
 			let scene_fbo = RefCell::borrow(self.framebuffer_scene_hdr_ehaa.need());
@@ -227,13 +243,13 @@ impl RenderGlobal {
 				let model_matrix = Matrix4::from_scale(1.0);
 				
 				let model_matrix_arr: [[f32; 4]; 4] = model_matrix.into();
-				gl::UniformMatrix4fv(gl::GetUniformLocation(scene_shader.program_gl(), "uMatrixModel\0".as_ptr() as *const gl::char), 1, gl::FALSE, model_matrix_arr.as_ptr() as *const gl::float);
+				gl::UniformMatrix4fv(gl::GetUniformLocation(scene_shader_gl, "uMatrixModel\0".as_ptr() as *const gl::char), 1, gl::FALSE, model_matrix_arr.as_ptr() as *const gl::float);
 				
 				let view_matrix_arr: [[f32; 4]; 4] = cam_state.view_matrix.into();
-				gl::UniformMatrix4fv(gl::GetUniformLocation(scene_shader.program_gl(), "uMatrixView\0".as_ptr() as *const gl::char), 1, gl::FALSE, view_matrix_arr.as_ptr() as *const gl::float);
+				gl::UniformMatrix4fv(gl::GetUniformLocation(scene_shader_gl, "uMatrixView\0".as_ptr() as *const gl::char), 1, gl::FALSE, view_matrix_arr.as_ptr() as *const gl::float);
 				
 				let viewprojection_matrix_arr: [[f32; 4]; 4] = viewprojection_matrix.into();
-				gl::UniformMatrix4fv(gl::GetUniformLocation(scene_shader.program_gl(), "uMatrixViewProjection\0".as_ptr() as *const gl::char), 1, gl::FALSE, viewprojection_matrix_arr.as_ptr() as *const gl::float);
+				gl::UniformMatrix4fv(gl::GetUniformLocation(scene_shader_gl, "uMatrixViewProjection\0".as_ptr() as *const gl::char), 1, gl::FALSE, viewprojection_matrix_arr.as_ptr() as *const gl::float);
 			}
 			
 			let start_frametimer = {// Start frametime timer
@@ -349,7 +365,7 @@ impl RenderGlobal {
 			}
 			
 			{// Do ehaa resolve pass
-				let post_resolve_shader = RefCell::borrow(self.program_post_resolve.need());
+				let post_resolve_shader = self.program_post_composite.program().unwrap();
 				
 // 				// DEBUG: Blit framebuffer
 //				gl::BlitNamedFramebuffer(self.framebuffer_scene_hdr_ehaa.need().handle_gl(), 0, 0, 0, 1280, 720, 0, 0, 1280, 720, gl::COLOR_BUFFER_BIT, gl::NEAREST);
@@ -357,7 +373,7 @@ impl RenderGlobal {
 				gl::Disable(gl::DEPTH_TEST);
 				
 				// Bind resolve shader
-				gl::UseProgram(post_resolve_shader.program_gl());
+				gl::UseProgram(post_resolve_shader.program_gl().unwrap());
 				
 				// Bind shaders
 				let main_fbo = RefCell::borrow(self.framebuffer_scene_hdr_ehaa.need());
