@@ -18,13 +18,13 @@ impl SSLSourceParser {
 		let mut export_func_list = Vec::<ExportedFunction>::new();
 		
 		let mut inside_export_func = false;
-		let mut expect_export_func_signature = true;
-		let mut export_func_signature = Option::<String>::None;
+		let mut expect_export_func_signature = false;
+//		let mut export_func_signature = Option::<String>::None;
 		
 		let mut inside_hide_block = false;
 		
 		// Split lines
-		let mut lines = source_code.lines();
+		let lines = source_code.lines();
 		
 		// Iterate over source lines
 		for line in lines {
@@ -35,25 +35,23 @@ impl SSLSourceParser {
 				
 				let directive = split_line.next();
 				
-				let valid_directive: bool = if let Some(directive) = directive {
+				#[allow(unused)]
+				let mut valid_directive = true;
+				if let Some(directive) = directive {
 					if directive.eq("@shadertype") {
 						// TODO: Implement
-						true
 					}
 					else if directive.eq("@glslversion") {
 						let version_string = format!("{} {}", split_line.next().unwrap(), split_line.next().unwrap_or(""));
 						glsl_version = Some(version_string);
-						true
 					} 
 					else if directive.eq("@namespace") {
 						shader_namespace = Some(String::from(split_line.next().unwrap()));
-						true
 					}
 					else if directive.eq("@import") {
 						if let Some(import) = split_line.next() {
 							import_declarations.push(String::from(import));
 						}
-						true
 					}
 					else if directive.eq("@exportfunc") {
 						// End current normal text block
@@ -62,7 +60,6 @@ impl SSLSourceParser {
 						
 						inside_export_func = true;
 						expect_export_func_signature = true;
-						true
 					}
 					else if directive.eq("@hide") {
 						// End current normal text block
@@ -70,7 +67,6 @@ impl SSLSourceParser {
 						current_body_buffer = String::new();
 						
 						inside_hide_block = true;
-						true
 					}
 					else if directive.eq("@end") {
 						if inside_export_func {
@@ -87,14 +83,19 @@ impl SSLSourceParser {
 							token_tree.push(SourceToken::HiddenSource {body: current_body_buffer});
 							current_body_buffer = String::new();
 						}
-						true
 					}
 					else {
-						false
+						// Unknown directive
+						valid_directive = false;
 					}
-				} else {
-					false
+				}
+				else {
+					// Blank directive is invalid
+					valid_directive = false;
 				};
+				
+				// DEBUG: Prevent unused var
+				drop(valid_directive);
 			}
 			else {
 				// Get export func signature
