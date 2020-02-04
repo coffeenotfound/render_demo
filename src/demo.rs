@@ -1,15 +1,16 @@
+use std::cell::RefCell;
 use std::error;
 use std::fs::OpenOptions;
 use std::panic;
 use std::path::{Path, PathBuf};
+use std::rc::Rc;
 use std::sync::{self, Arc, Mutex};
-use std::sync::mpsc::Receiver;
 use std::time::{SystemTime, UNIX_EPOCH};
 use byte_slice_cast::*;
 use byteorder::{ByteOrder, LittleEndian};
 use cgmath::{Deg, InnerSpace, Quaternion, Rad, Rotation, vec2, vec3, Vector2, Vector3};
 use gl_bindings::gl;
-use glfw::{Context, SwapInterval, WindowEvent, WindowHint, WindowMode};
+use glfw::{SwapInterval, WindowEvent};
 use crate::asset::ASSET_MANAGER_INSTANCE;
 use crate::camera::{Camera, OrbitAngles, PerspectiveProjection};
 use crate::camera::utils::fovx_to_fovy;
@@ -17,6 +18,8 @@ use crate::model::ply::{PlyMeshLoader, PlyReadError, PullEvent};
 use crate::render::{ImageFormat, RenderGlobal, TestVertexBuffer, Texture};
 use crate::render::separable_sss::{DEFAULT_HUMAN_SKIN_FALLOFF_FACTORS, DEFAULT_HUMAN_SKIN_STRENGTH_FACTORS, SubsurfaceKernelGenerator};
 use crate::utils::lazy_option::Lazy;
+use crate::window::{GlfwContext, Window};
+use crate::utils::option_overwrite::OptionOverwrite;
 
 pub static mut DEMO_INSTANCE: Option<Demo> = None;
 
@@ -39,8 +42,10 @@ pub struct Demo {
 	#[deprecated]
 	pub asset_folder: PathBuf,
 	
-	pub window: Option<glfw::Window>,
-	pub window_channel: Option<Receiver<(f64, WindowEvent)>>,
+	pub glfw_context: Rc<RefCell<GlfwContext>>,
+	pub main_window: Option<Rc<RefCell<Window>>>,
+//	pub window: Option<glfw::Window>,
+//	pub window_channel: Option<Receiver<(f64, WindowEvent)>>,
 	
 	pub render_global: RenderGlobal,
 	
@@ -66,11 +71,17 @@ impl Demo {
 			}
 		}
 		
+		// Init glfw
+		let glfw_context = GlfwContext::init()?;
+		
+		// Make instance and return
 		Ok(Self {
 			asset_folder,
 			
-			window: None,
-			window_channel: None,
+			glfw_context: Rc::new(RefCell::new(glfw_context)),
+			main_window: None,
+//			window: None,
+//			window_channel: None,
 			
 			render_global: RenderGlobal::new(),
 			
@@ -87,34 +98,43 @@ impl Demo {
 		//let resolution = (1280, 720);
 		let resolution = (1600, 900);
 		
-		// Init glfw
-		let mut glfw = glfw::init(glfw::FAIL_ON_ERRORS).expect("Failed to init glfw");
-		
-		// Set glfw window hints
-		glfw.default_window_hints();
-		glfw.window_hint(WindowHint::Resizable(false));
-		
-		// Create glfw window
-		let window_glfw = {
-			let (window_glfw, window_channel) = glfw.create_window(resolution.0, resolution.1, "Render Demo", WindowMode::Windowed).expect("Failed to create glfw window");
-			self.window = Some(window_glfw);
-			self.window_channel = Some(window_channel);
+		{// Create the main window
+			let window = Window::new(Rc::clone(&self.glfw_context));
+			let window = self.main_window.overwrite(window);
+			let mut window = RefCell::borrow_mut(window);
 			
-			self.window.need_mut()
-		};
+			window.init();
+			window.set_title(String::from("Render Demo"));
+			window.resize(resolution.0, resolution.1);
+			window.make_visible(true);
+			window.update();
+			
+			// Create gl
+			let gl_context = Rc::clone(window.gl_context().unwrap());
+			let mut gl_context = RefCell::borrow_mut(&gl_context);
+			
+			// Drop window RefMut
+			drop(window);
+			
+			// Make context current
+			gl_context.make_current();
+			gl_context.set_swap_interval(SwapInterval::Sync(1));
+		}
 		
-		// Open window
-		window_glfw.show();
-		
-		// Create gl
-		window_glfw.make_current();
-		gl::load_with(|s| window_glfw.get_proc_address(s) as *const _);
-		
-		glfw.set_swap_interval(SwapInterval::Sync(1));
-		
-		// Enable key and mouse input callbacks
-		window_glfw.set_key_polling(true);
-		window_glfw.set_scroll_polling(true);
+//		// Init glfw
+//		let mut glfw = glfw::init(glfw::FAIL_ON_ERRORS).expect("Failed to init glfw");
+//		
+//		// Create glfw window
+//		let window_glfw = {
+//			let (window_glfw, window_channel) = glfw.create_window(resolution.0, resolution.1, "Render Demo", WindowMode::Windowed).expect("Failed to create glfw window");
+//			self.window = Some(window_glfw);
+//			self.window_channel = Some(window_channel);
+//			
+//			self.window.need_mut()
+//		};
+//		
+//		// Open window
+//		window_glfw.show();
 		
 		// Setup gl debug output
 		unsafe {
@@ -280,22 +300,33 @@ impl Demo {
 		self.render_global.initialize(resolution).expect("Failed to init render global");
 		
 		// Main loop
-		while !self.window.need().should_close() {
-			// Poll window events
-			glfw.poll_events();
-			for (_, event) in glfw::flush_messages(self.window_channel.need()) {
-				match event {
-					WindowEvent::Scroll(_scroll_x, scroll_y) => {
-						self.test_camera_orbit.distance = f32::min(f32::max(self.test_camera_orbit.distance - ((scroll_y as f32 * 0.1) * self.test_camera_orbit.distance), 2.0), 16.0);
-					}
-					WindowEvent::Key(key, _scancode, action, _) => {
-						if key == glfw::Key::R && action == glfw::Action::Press {
-							// Reload shaders
-							self.render_global.queue_shader_reload();
+		'main_loop: loop {
+			{// Update window and poll messages
+				let mut window_borrow = self.main_window.need().borrow_mut();
+				
+				// Poll window events
+				for (_, event) in window_borrow.poll_messages() {
+					match event {
+						WindowEvent::Scroll(_scroll_x, scroll_y) => {
+							self.test_camera_orbit.distance = f32::min(f32::max(self.test_camera_orbit.distance - ((scroll_y as f32 * 0.1) * self.test_camera_orbit.distance), 2.0), 16.0);
 						}
+						WindowEvent::Key(key, _scancode, action, _) => {
+							if key == glfw::Key::R && action == glfw::Action::Press {
+								// Reload shaders
+								self.render_global.queue_shader_reload();
+							}
+						}
+						_ => {},
 					}
-					_ => {},
 				}
+				
+				// Check if window should close
+				if window_borrow.should_close() {
+					break 'main_loop;
+				}
+				
+				// Ensure window RefMut is dropped
+				drop(window_borrow);
 			}
 			
 			// Tick frame
@@ -304,12 +335,17 @@ impl Demo {
 			// Render frame
 			self.render_global.do_render_frame();
 			
-			// Swap window buffers
-			self.window.need_mut().swap_buffers();
+			{// Swap buffers
+				let mut window_borrow = self.main_window.need().borrow_mut();
+				window_borrow.swap_buffers();
+				
+				// Ensure window RefMut is dropped
+				drop(window_borrow);
+			}
 		}
 		
-		// Close window
-		self.window.take().unwrap().close();
+//		// Close window
+//		self.window.take().unwrap().close();
 	}
 	
 	pub fn do_tick_frame(&mut self) {
@@ -324,10 +360,10 @@ impl Demo {
 			// Get tick delta time, clamped from 0 to 1
 			let delta_time = f32::min(f32::max((current_time - carousel.last_tick_time) as f32, 0.0), 1.0);
 			
-			let mouse_pos = self.window.need().get_cursor_pos();
+			let mouse_pos = self.main_window.need().borrow().get_cursor_pos();
 			
-			let button_state = self.window.need().get_mouse_button(glfw::MouseButtonLeft);
-			if let glfw::Action::Press = button_state {
+			let button_state = self.main_window.need().borrow().get_mouse_button(glfw::MouseButtonLeft);
+			if button_state {
 				// Deaccelerate spin
 				carousel.current_spin_speed = f32::max(carousel.current_spin_speed - carousel.spin_deacceleration_per_sec * delta_time, 0.0);
 				
@@ -368,7 +404,7 @@ impl Demo {
 			let mut cam = self.test_active_camera.need().lock().unwrap();
 			
 			// Update camera viewport size
-			let window = self.window.need();
+			let window = self.main_window.need().borrow();
 			let window_size = window.get_size();
 			cam.viewport_size = (window_size.0 as u32, window_size.1 as u32);
 			

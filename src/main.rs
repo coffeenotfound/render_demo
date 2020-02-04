@@ -2,6 +2,7 @@
 #![allow(deprecated)]
 
 pub mod demo;
+pub mod window;
 pub mod utils;
 pub mod render;
 pub mod camera;
