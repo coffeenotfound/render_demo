@@ -236,6 +236,9 @@ impl RenderGlobal {
 			let scene_fbo = RefCell::borrow(self.framebuffer_scene_hdr_ehaa.need());
 			gl::BindFramebuffer(gl::FRAMEBUFFER, scene_fbo.handle_gl());
 			
+			// Set the viewport
+			gl::Viewport(0, 0, self.current_resolution.0 as gl::sizei, self.current_resolution.1 as gl::sizei);
+			
 			gl::ClearColor(0.0, 0.0, 0.0, 0.0);
 			gl::Clear(gl::COLOR_BUFFER_BIT | gl::DEPTH_BUFFER_BIT);
 			
