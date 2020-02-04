@@ -16,13 +16,18 @@ use std::sync::mpsc::Receiver;
 use byteorder::{LittleEndian, ByteOrder};
 use std::time::{SystemTime, UNIX_EPOCH};
 use crate::asset::ASSET_MANAGER_INSTANCE;
+use std::error;
 
 pub static mut DEMO_INSTANCE: Option<Demo> = None;
 
 pub fn start() {
+	// Init the demo object
+	let demo = Demo::init().expect("Failed to init demo");
 	unsafe {
-		DEMO_INSTANCE = Some(Demo::new())
+		DEMO_INSTANCE = Some(demo);
 	}
+	
+	// Run the demo
 	demo_instance().run();
 }
 
@@ -31,7 +36,7 @@ pub fn demo_instance() -> &'static mut Demo {
 }
 
 pub struct Demo {
-	pub asset_folder: Option<PathBuf>,
+	pub asset_folder: PathBuf,
 	
 	pub window: Option<glfw::Window>,
 	pub window_channel: Option<Receiver<(f64, WindowEvent)>>,
@@ -47,9 +52,22 @@ pub struct Demo {
 }
 
 impl Demo {
-	pub fn new() -> Demo {
-		Demo {
-			asset_folder: None,
+	pub fn init() -> Result<Demo, Box<dyn error::Error>> {
+		let asset_folder;
+		{// Resolve asset folder
+			let current_dir = PathBuf::from(std::env::current_dir().unwrap().as_os_str().to_os_string().into_string().unwrap().replace("\\", "/"));
+			
+			asset_folder = current_dir.join("assets/");
+			println!("Asset folder '{}'", asset_folder.as_path().display());
+			
+			unsafe {
+				ASSET_MANAGER_INSTANCE.init(asset_folder.clone());
+			}
+		}
+		
+		Ok(Self {
+			asset_folder,
+			
 			window: None,
 			window_channel: None,
 			
@@ -61,7 +79,7 @@ impl Demo {
 			test_active_camera: None,
 			test_camera_orbit: {let mut a = OrbitAngles::new_zero(vec3(0.0, 1.0, 0.0), vec3(0.0, 0.0, -1.0)); a.distance = 3.5; a.center = vec3(0.0, 1.75, 0.0); a},
 			test_camera_carousel_state: DemoCameraCarouselState::new(),
-		}
+		})
 	}
 	
 	pub fn run(&mut self) {
@@ -117,16 +135,6 @@ impl Demo {
 				println!("	vec4({:.6}, {:.6}, {:.6}, {:.6}),", sample.x, sample.y, sample.z, sample.w);
 			}
 			println!("}};");
-		}
-		
-		// Resolve asset folder
-		let current_dir = PathBuf::from(std::env::current_dir().unwrap().as_os_str().to_os_string().into_string().unwrap().replace("\\", "/"));
-		
-		self.asset_folder = Some(current_dir.join("assets/"));
-		println!("Asset folder '{}'", self.asset_folder.need().as_path().display());
-		
-		unsafe {
-			ASSET_MANAGER_INSTANCE.init(self.asset_folder.as_ref().unwrap().clone());
 		}
 		
 		{// Load test model (lee head)
