@@ -1,4 +1,5 @@
 #![feature(str_strip)]
+#![allow(deprecated)]
 
 pub mod demo;
 pub mod utils;
