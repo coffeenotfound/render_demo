@@ -36,6 +36,7 @@ pub fn demo_instance() -> &'static mut Demo {
 }
 
 pub struct Demo {
+	#[deprecated]
 	pub asset_folder: PathBuf,
 	
 	pub window: Option<glfw::Window>,
