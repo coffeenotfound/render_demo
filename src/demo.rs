@@ -17,17 +17,17 @@ use byteorder::{LittleEndian, ByteOrder};
 use std::time::{SystemTime, UNIX_EPOCH};
 use crate::asset::ASSET_MANAGER_INSTANCE;
 
-static mut DEMO_INSTANCE: Option<Demo> = Option::None;
-
-pub fn demo_instance() -> &'static mut Demo {
-	unsafe {&mut DEMO_INSTANCE}.as_mut().expect("Demo instance not initialized yet (how the in the hel-")
-}
+pub static mut DEMO_INSTANCE: Option<Demo> = None;
 
 pub fn start() {
 	unsafe {
 		DEMO_INSTANCE = Some(Demo::new())
 	}
 	demo_instance().run();
+}
+
+pub fn demo_instance() -> &'static mut Demo {
+	unsafe {&mut DEMO_INSTANCE}.as_mut().expect("Demo instance not initialized yet (how the in the hel-")
 }
 
 pub struct Demo {
@@ -61,13 +61,6 @@ impl Demo {
 			test_active_camera: None,
 			test_camera_orbit: {let mut a = OrbitAngles::new_zero(vec3(0.0, 1.0, 0.0), vec3(0.0, 0.0, -1.0)); a.distance = 3.5; a.center = vec3(0.0, 1.75, 0.0); a},
 			test_camera_carousel_state: DemoCameraCarouselState::new(),
-		}
-	}
-	
-	pub fn get_test_camera(&mut self) -> sync::Weak<Mutex<Camera>> {
-		match &self.test_active_camera {
-			Some(cam) => Arc::downgrade(cam),
-			None => sync::Weak::new(),
 		}
 	}
 	
@@ -378,6 +371,13 @@ impl Demo {
 			let rotation = Quaternion::<f32>::from(orbit.angles);
 			cam.rotation = rotation.clone().invert();
 			cam.translation = orbit.center + (&rotation * vec3::<f32>(0.0, 0.0, -1.0) * -orbit.distance);
+		}
+	}
+	
+	pub fn get_test_camera(&mut self) -> sync::Weak<Mutex<Camera>> {
+		match &self.test_active_camera {
+			Some(cam) => Arc::downgrade(cam),
+			None => sync::Weak::new(),
 		}
 	}
 }
