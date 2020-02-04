@@ -11,6 +11,7 @@ impl<'a> SSLTranspiler<'a> {
 		self.import_scope.push(include);
 	}
 	
+	#[allow(unused_must_use)] // DEBUG: Allow unused fmt results for now
 	pub fn transpile(&mut self, source: &ParsedSource) -> TranspiledShaderSource {
 		let mut buffer = String::new();
 		
