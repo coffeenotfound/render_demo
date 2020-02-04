@@ -257,7 +257,7 @@ impl RenderGlobal {
 				gl::GetQueryObjectui64v(self.frametime_query_object_gl, gl::QUERY_RESULT_NO_WAIT, &mut elapsed_frametime);
 				
 				if elapsed_frametime != std::u64::MAX {
-					let float_frametime = (elapsed_frametime as f64) / 1e6;
+					let _float_frametime = (elapsed_frametime as f64) / 1e6;
 					
 //					let title = format!("EHAA Demo ~ Frametime {} ms", float_frametime);
 //					self.window.need_mut().set_title(title.as_str());
