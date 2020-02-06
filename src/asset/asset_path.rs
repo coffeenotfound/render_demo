@@ -18,33 +18,11 @@ impl AssetPathBuf {
 	pub fn from(path: &str) -> Self {
 		Self::from_owned(String::from(path))
 	}
-}
-
-impl Debug for AssetPathBuf {
-	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
-		write!(f, "AssetPathBuf(\"{}\")", &self.inner_path)
-	}
-}
-
-/*
-impl<'a> Deref for &'a AssetPathBuf {
-	type Target = AssetPath<'a>;
 	
-	fn deref(&self) -> &Self::Target {
-		&AssetPath::from_buf(self.inner_path.as_str())
+	fn condition_raw_path_str(raw_path_str: &str) -> &str {
+		raw_path_str.trim()
 	}
 }
-*/
-
-/*
-impl<'a> Deref for AssetPathBuf where Self: 'a {
-	type Target = AssetPath<'a>;
-	
-	fn deref(&'a self) -> &Self::Target {
-		&self.as_path()
-	}
-}
-*/
 
 pub struct AssetPath<'a> {
 	pub inner_path_slice: &'a str,
