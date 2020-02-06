@@ -33,6 +33,10 @@ impl<'a> AssetPath<'a> {
 		self.inner_path_slice.starts_with("/")
 	}
 	
+	pub fn is_relative(&self) -> bool {
+		!self.is_absolute()
+	}
+	
 	pub fn join(&self, other_relative: &AssetPath) -> Option<AssetPathBuf> {
 		// If `other` is absolute joining doesn't make sense
 		if other_relative.is_absolute() {
