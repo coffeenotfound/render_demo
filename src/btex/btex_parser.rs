@@ -82,11 +82,11 @@ impl<'r, 'g, R, G> BTexParser<'r, 'g, R, G> where R: Read + Seek, G: BTexFormatR
 			Err(ParseError::InvalidTextureLayout)
 		})?;
 		
-		// TODO: Parse format str as ascii not utf8
 		// Read the image format
 		let mut raw_format = [0 as u8; 16];
 		conv_io_error(self.reader.read_exact(&mut raw_format))?;
 		
+		// TODO: Parse format str as ascii not utf8
 		let format_str = std::str::from_utf8(&raw_format).map_err(|_| ParseError::UnknownImageFormat(String::from("????")))?;
 		
 		// Lookup image format
