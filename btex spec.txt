@@ -29,6 +29,7 @@ struct FileHeader {
 	version: u32,
 	
 	/// The total size in bytes of this header.
+	/// Always 64 for now.
 	header_length: u32,
 	
 	/// The total size in bytes of the offset table.
@@ -37,7 +38,7 @@ struct FileHeader {
 	
 	/// Flags about the texture.
 	/// Bit 0 - Sparse flag: The offset table may contain omitted images
-	texture_attributes: u32,
+	attributes: u32,
 	
 	/// The width (x-resolution) of the base level of each layer.
 	/// If width is zero all layers are zero-sized.
@@ -83,7 +84,7 @@ struct FileHeader {
 	/// * astc_4x4x4_srgb
 	image_format: [u8; 16],
 	
-	_padding: [u32; 2],
+	_padding: [u8; 8],
 }
 
 #[repr(C)]
