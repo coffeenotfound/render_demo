@@ -10,6 +10,7 @@ pub mod model;
 pub mod math;
 pub mod asset;
 pub mod structured_shader_language;
+pub mod btex;
 
 fn main() {
 	demo::start();
