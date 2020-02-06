@@ -16,7 +16,8 @@ impl AssetPathBuf {
 	}
 	
 	pub fn from(path: &str) -> Self {
-		Self::from_owned(String::from(path))
+		let conditioned_path = Self::condition_raw_path_str(path);
+		Self::from_owned(String::from(conditioned_path))
 	}
 	
 	fn condition_raw_path_str(raw_path_str: &str) -> &str {
@@ -85,9 +86,10 @@ impl<'a> AssetPath<'a> {
 		}
 	}
 	
-	pub fn from_str(path_slice: &'a str) -> Self {
+	pub fn from_str(path_str: &'a str) -> Self {
+		let conditioned_path = AssetPathBuf::condition_raw_path_str(path_str);
 		Self {
-			inner_path_slice: path_slice.trim(),
+			inner_path_slice: conditioned_path
 		}
 	}
 }
