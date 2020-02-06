@@ -8,49 +8,50 @@
 // * Each layer may only have as many levels until (including) the smallest level size is reached
 // * Zero sized layers must have zero levels.
 // * Images have a top-left(-front) origin coordinate system, growing down and right (and forwards).
+// * If the texture is zero-sized, all image formats should be seen as compatible
 
 #[repr(C)]
 struct BTexFile {
-	header: FileHeader;
-	offset_table: OffsetTable;
-	pixel_data_array: [[u8; m(i)]; n]; // |n| is layers * levels. |m| is the size in bytes of the given image i, as specified in the offset table
+	header: FileHeader,
+	offset_table: OffsetTable,
+	pixel_data_array: [[u8; m(i)]; n], // |n| is layers * levels. |m| is the size in bytes of the given image i, as specified in the offset table
 }
 
 #[repr(C)]
 struct FileHeader {
 	/// The magic number of the file.
 	/// Always `['b', 't', 'e', 'x']`
-	magic_number: [u8; 4];
+	magic_number: [u8; 4],
 	
 	/// The version of the file.
 	/// Right now always 1.
-	version: u32;
+	version: u32,
 	
 	/// The total size in bytes of this header.
-	header_length: u32;
+	header_length: u32,
 	
 	/// The total size in bytes of the offset table.
 	/// Note that offset table starts immediately after the header.
-	offset_table_length: u32;
+	offset_table_length: u32,
 	
 	/// Flags about the texture.
 	/// Bit 0 - Sparse flag: The offset table may contain omitted images
-	attributes: u32;
+	texture_attributes: u32,
 	
 	/// The width (x-resolution) of the base level of each layer.
 	/// If width is zero all layers are zero-sized.
 	/// If width is non-zero and both height and depth are zero, this texture is 1d.
 	/// If both width and height are non-zero and depth is zero, this texture is 2d.
 	/// If width, height and depth are all non-zero, this texture is 3d.
-	width: u32;
+	width: u32,
 	
 	/// The height (y-resolution) of base level of each layer.
 	/// If width is zero, height must also be zero.
-	height: u32;
+	height: u32,
 	
 	/// The depth (z-resolution) of base level of each layer.
 	/// If height is zero, depth must also be zero.
-	depth: u32;
+	depth: u32,
 	
 	/// The number of levels each layer.
 	/// The number of levels must be greater than zero
@@ -58,13 +59,13 @@ struct FileHeader {
 	/// 
 	/// Note that there may only be as many levels until the smallest
 	/// level size is reached, or zero if the layers are zero-sized.
-	levels: u32;
+	levels: u32,
 	
 	/// The number of layers in this texture.
 	/// The number of layers must be greater than zero
 	/// except if the layers are zero-sized, then it must be zero.
 	/// If the file is storing one "logical" multi-level texture this will be 1.
-	layers: u32;
+	layers: u32,
 	
 	/// A string-based, case-sensitive, strictly compared enum representing
 	/// the image format of the pixel data of all images in this texture.
@@ -79,9 +80,9 @@ struct FileHeader {
 	/// * bc7
 	/// * astc_8x6
 	/// * astc_4x4x4_srgb
-	image_format: [u8; 16];
+	image_format: [u8; 16],
 	
-	_padding: [u32; 2];
+	_padding: [u32; 2],
 }
 
 #[repr(C)]
@@ -103,5 +104,5 @@ struct OffsetTable {
 	/// in which case the image is said to be 'omitted' and has no pixel data
 	/// associated with it. How an omitted image is interpreted is up
 	/// to the situation and context.
-	data_offsets: [(u64, u64); n]; // |n| is layers * levels
+	data_offsets: [(u64, u64); n], // |n| is layers * levels
 }
