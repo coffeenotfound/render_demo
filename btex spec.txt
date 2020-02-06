@@ -9,6 +9,7 @@
 // * Zero sized layers must have zero levels.
 // * Images have a top-left(-front) origin coordinate system, growing down and right (and forwards).
 // * If the texture is zero-sized, all image formats should be seen as compatible
+// * If, and only if, the sparse attribute is set may this texture contain omitted images.
 
 #[repr(C)]
 struct BTexFile {
