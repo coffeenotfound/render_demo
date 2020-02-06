@@ -1,10 +1,10 @@
 use crate::render::{RenderSubsystem, ReconfigureEvent, Framebuffer};
 
 pub struct BloomSubsystem {
-	max_octaves: u32,
+	pub max_octaves: u32,
 	
-	framebuffer_bloom_temp: Framebuffer,
-	framebuffers_bloom_levels: Vec<Framebuffer>,
+	pub framebuffer_bloom_temp: Framebuffer,
+	pub framebuffers_bloom_levels: Vec<Framebuffer>,
 }
 
 impl BloomSubsystem {
