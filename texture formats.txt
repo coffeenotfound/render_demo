@@ -1,0 +1,28 @@
+
+# Our uses 
+
+
+# BCn Formats
+
+BC1 / DXT1 (rgb + optional 1-bit alpha)
+* Adequate quality color (optionally with cutout alpha)
+
+BC2 / DXT3 (rgb + 4-bit alpha)
+* Adequate quality color with 4-bit alpha
+
+BC3 / DXT5 (rgba)
+* Adequate quality color with full alpha
+
+BC4 (grayscale)
+* Bump map
+* Metalness map
+* Transmission map (maybe, still needs seperate world-space scale parameter)
+
+BC5 (2x grayscale)
+* Tangent-space normal maps (reconstruct z in shader)
+
+BC6 (rgb unnormalized float)
+* High quality hdr maps
+
+BC7 (rgb or rgba)
+* High quality color (both with and without alpha)
