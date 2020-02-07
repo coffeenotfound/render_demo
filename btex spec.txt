@@ -78,8 +78,15 @@ struct FileHeader {
 	/// Examples:
 	/// * rgba8
 	/// * srgb8_a8
-	/// * dxt5
-	/// * bc7
+	/// * bc1_rgb
+	/// * bc1_rgb_a1
+	/// * bc2_rgb_a4
+	/// * bc3_rgba
+	/// * bc4_r
+	/// * bc5_r_g
+	/// * bc6_rgb_float
+	/// * bc7_rgb
+	/// * bc7_rgba
 	/// * astc_8x6
 	/// * astc_4x4x4_srgb
 	image_format: [u8; 16],
