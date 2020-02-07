@@ -12,7 +12,7 @@ pub struct BTexWriter<'w, W> where W: Write + Seek {
 impl<'w, W> BTexWriter<'w, W> where W: Write + Seek {
 //	pub fn write<'b, P, F>(&'b mut self, texture_info: &'b BTexTextureInfo, data_provider: F) -> Result<(), WriteError>
 //			where P: 'b + PixelDataSource, F: Fn(ImageSourceIndex) -> Option<&'b mut P> {
-	pub fn write<'b, R>(&'b mut self, texture_info: &'b BTexTextureInfo, pixel_data_sources: &'b mut [Option<&'b mut PixelDataSource<'b, R>>]) -> Result<(), WriteError> where R: Read {
+	pub fn write<'b, R>(&'b mut self, texture_info: &'_ BTexTextureInfo, pixel_data_sources: &'_ mut [Option<&'_ mut PixelDataSource<'_, R>>]) -> Result<(), WriteError> where R: Read {
 		fn conv_io_error<T>(result: Result<T, io::Error>) -> Result<T, WriteError> {
 			result.map_err(|e| WriteError::IoError(e))
 		}
