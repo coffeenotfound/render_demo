@@ -134,8 +134,8 @@
 layout(binding = 0) uniform sampler2D texSceneHDR;
 
 /**
- * Depth buffer of the scene. The depth should be linear but we
- * are using reverse float z which is linear-ish enough
+ * Depth buffer of the scene.
+ * Assumed to be normal logarithmic depth.
  */
 layout(binding = 1) uniform sampler2D texSceneDepth;
 
