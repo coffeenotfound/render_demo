@@ -1,7 +1,7 @@
 use cgmath::{Vector3, BaseFloat, Euler, Angle, Rad, Zero};
 use num_traits::FromPrimitive;
 
-pub struct OrbitAngles<N: BaseFloat + FromPrimitive = f32, R: Angle = Rad<N>> {
+pub struct OrbitAngles<N = f32, R = Rad<N>> where N: BaseFloat + FromPrimitive, R: Angle<Unitless = N> {
 	pub up_vector: Vector3<N>,
 	pub forward_vector: Vector3<N>,
 	pub center: Vector3<N>,
@@ -9,7 +9,7 @@ pub struct OrbitAngles<N: BaseFloat + FromPrimitive = f32, R: Angle = Rad<N>> {
 	pub distance: N,
 }
 
-impl<N: BaseFloat + FromPrimitive, R: Angle<Unitless = N>> OrbitAngles<N, R> {
+impl<N, R> OrbitAngles<N, R> where N: BaseFloat + FromPrimitive, R: Angle<Unitless = N> {
 	pub fn new_zero(up_vector: Vector3<N>, forward_vector: Vector3<N>) -> OrbitAngles<N, R> {
 		OrbitAngles {
 			up_vector,
