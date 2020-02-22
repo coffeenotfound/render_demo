@@ -11,7 +11,7 @@ use byteorder::{ByteOrder, LittleEndian};
 use cgmath::{Deg, InnerSpace, Quaternion, Rad, Rotation, vec2, vec3, Vector2, Vector3};
 use gl_bindings::gl;
 use glfw::{SwapInterval, WindowEvent};
-use crate::asset::ASSET_MANAGER_INSTANCE;
+use crate::asset::{ASSET_MANAGER_INSTANCE, AssetPath};
 use crate::camera::{Camera, OrbitAngles, PerspectiveProjection};
 use crate::camera::utils::fovx_to_fovy;
 use crate::model::ply::{PlyMeshLoader, PlyReadError, PullEvent};
@@ -163,7 +163,7 @@ impl Demo {
 			println!("Loading lee head model");
 			
 //			let mut file = OpenOptions::new().read(true).open(r"C:\Users\Jan\Desktop\Lee Head\Lee Head.ply").expect("Failed to load test lee head model");
-			let mut file = OpenOptions::new().read(true).open(r"C:\Users\Jan\Desktop\Free Head\Free Head.ply").expect("Failed to load test free head model");
+			let mut file = OpenOptions::new().read(true).open(unsafe {&ASSET_MANAGER_INSTANCE}.resolve_asset_fs_path(&AssetPath::from_str("models/free_head/head.ply"))).expect("Failed to load test free head model");
 			
 			let loader = PlyMeshLoader::new(&mut file);
 			let mut puller = loader.parse_header().unwrap();
@@ -262,9 +262,9 @@ impl Demo {
 //			let tex_normal = Texture::load_png_from_path(Path::new(r"C:/Users/Jan/Desktop/Lee Head/lee_head_normal.png"), ImageFormat::get(gl::RGBA8)).expect("Failed to load normal texture");
 //			let tex_transmission = Texture::load_png_from_path(Path::new(r"C:/Users/Jan/Desktop/Lee Head/lee_head_transmission.png"), ImageFormat::get(gl::RGBA8)).expect("Failed to load transmission texture");
 			
-			let tex_albedo = Texture::load_png_from_path(Path::new(r"C:/Users/Jan/Desktop/Free Head/albedo.png"), ImageFormat::get(gl::SRGB8_ALPHA8)).expect("Failed to load albedo texture");
-			let tex_normal = Texture::load_png_from_path(Path::new(r"C:/Users/Jan/Desktop/Free Head/normal.png"), ImageFormat::get(gl::RGBA8)).expect("Failed to load normal texture");
-			let tex_transmission = Texture::load_png_from_path(Path::new(r"C:/Users/Jan/Desktop/Free Head/translucency.png"), ImageFormat::get(gl::RGBA8)).expect("Failed to load transmission texture");
+			let tex_albedo = Texture::load_png_from_path(unsafe {&ASSET_MANAGER_INSTANCE}.resolve_asset_fs_path(&AssetPath::from_str("models/free_head/head_albedo.png")).as_path(), ImageFormat::get(gl::SRGB8_ALPHA8)).expect("Failed to load albedo texture");
+			let tex_normal = Texture::load_png_from_path(unsafe {&ASSET_MANAGER_INSTANCE}.resolve_asset_fs_path(&AssetPath::from_str("models/free_head/head_normal.png")).as_path(), ImageFormat::get(gl::RGBA8)).expect("Failed to load normal texture");
+			let tex_transmission = Texture::load_png_from_path(unsafe {&ASSET_MANAGER_INSTANCE}.resolve_asset_fs_path(&AssetPath::from_str("models/free_head/head_translucency.png")).as_path(), ImageFormat::get(gl::RGBA8)).expect("Failed to load transmission texture");
 			
 //			let tex_albedo = Texture::new(16, 16, 1, ImageFormat::get(gl::RGBA8));
 //			let tex_normal = Texture::new(16, 16, 1, ImageFormat::get(gl::RGBA8));
