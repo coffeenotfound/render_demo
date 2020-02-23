@@ -1,0 +1,17 @@
+Program (
+	id: "main_scene_forward",
+	shaders: [
+		Shader (
+			type: Vertex,
+			source: "main_scene_forward.vert.glsl"
+		),
+		Shader (
+			type: TessEvaluation,
+			source: "main_scene_forward.tesseval.glsl"
+		),
+		Shader (
+			type: Fragment,
+			source: "main_scene_forward.frag.glsl"
+		)
+	]
+)
