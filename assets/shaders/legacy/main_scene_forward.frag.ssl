@@ -156,7 +156,7 @@ void main() {
 	}
 	
 	// Ambient light
-	radiance += albedo * inverseMetalness * vec3(0.01);
+//	radiance += albedo * inverseMetalness * vec3(0.01);
 	
 	vec3 shadedFrag = radiance;
 	
