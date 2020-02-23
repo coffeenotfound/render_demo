@@ -2,7 +2,7 @@ use std::cell::RefCell;
 use std::error;
 use std::fs::OpenOptions;
 use std::panic;
-use std::path::{Path, PathBuf};
+use std::path::{PathBuf};
 use std::rc::Rc;
 use std::sync::{self, Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
