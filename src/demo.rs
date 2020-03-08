@@ -110,6 +110,7 @@ impl Demo {
 			// Center window
 			window.center_on_screen();
 			
+			// Make window visible
 			window.make_visible(true);
 			window.update();
 			
