@@ -5,6 +5,7 @@ use crate::window::{GlfwContext, GLWindowContext};
 use std::sync::mpsc::Receiver;
 use crate::utils::bool_cmpxchg::BoolCompareExchange;
 use crate::utils::lazy_option::Lazy;
+use glfw::ffi::{glfwGetPrimaryMonitor, glfwGetVideoMode};
 
 pub struct Window {
 	pub(in super) glfw_context: Rc<RefCell<GlfwContext>>,
@@ -102,6 +103,29 @@ impl Window {
 	pub fn swap_buffers(&mut self) {
 		if let Some(window) = &mut self.window_glfw {
 			window.swap_buffers();
+		}
+	}
+	
+	/// This is a super bad abstraction because it does not
+	/// properly account for multiple monitors but it's
+	/// fine for our test porpuses right now.
+	/// 
+	/// Currently only works while the window is actually created.
+	/// Yeah it's bad. Completely redo this in future.
+	pub fn center_on_screen(&mut self) {
+		if let Some(window) = &mut self.window_glfw {
+			unsafe {
+				// Get the primary monitor
+				let primary_monitor = glfwGetPrimaryMonitor();
+				
+				// Get the current video mode of the primary monitor
+				let video_mode = glfwGetVideoMode(primary_monitor);
+				
+				// Move our window
+				let x_pos = ((*video_mode).width - self.width as i32) / 2i32;
+				let y_pos = ((*video_mode).height - self.height as i32) / 2i32;
+				window.set_pos(x_pos, y_pos);
+			}
 		}
 	}
 	

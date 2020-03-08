@@ -106,6 +106,10 @@ impl Demo {
 			window.init();
 			window.set_title(String::from("Render Demo"));
 			window.resize(resolution.0, resolution.1);
+			
+			// Center window
+			window.center_on_screen();
+			
 			window.make_visible(true);
 			window.update();
 			
