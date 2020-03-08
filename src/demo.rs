@@ -114,6 +114,9 @@ impl Demo {
 			window.make_visible(true);
 			window.update();
 			
+			// Swap buffers to clear any artifacts in the backbuffer
+			window.swap_buffers();
+			
 			// Create gl
 			let gl_context = Rc::clone(window.gl_context().unwrap());
 			let mut gl_context = RefCell::borrow_mut(&gl_context);
