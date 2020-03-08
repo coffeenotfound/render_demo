@@ -20,6 +20,7 @@ use crate::render::separable_sss::{DEFAULT_HUMAN_SKIN_FALLOFF_FACTORS, DEFAULT_H
 use crate::utils::lazy_option::Lazy;
 use crate::window::{GlfwContext, Window};
 use crate::utils::option_overwrite::OptionOverwrite;
+use std::ffi::{CStr};
 
 pub static mut DEMO_INSTANCE: Option<Demo> = None;
 
@@ -143,6 +144,24 @@ impl Demo {
 //		
 //		// Open window
 //		window_glfw.show();
+		
+		{// Print opengl implementation info
+			fn get_gl_string(token: gl::enuma) -> String {
+				let raw_ptr = unsafe {gl::GetString(token)};
+				String::from(unsafe {CStr::from_ptr(raw_ptr as *const std::os::raw::c_char)}.to_string_lossy())
+			}
+			
+			let vendor = get_gl_string(gl::VENDOR);
+			let renderer = get_gl_string(gl::RENDERER);
+			let version = get_gl_string(gl::VERSION);
+			let glsl_version = get_gl_string(gl::SHADING_LANGUAGE_VERSION);
+			
+			println!("GL Implementation Info:");
+			println!("  VENDOR: \"{}\"", vendor);
+			println!("  RENDERER: \"{}\"", renderer);
+			println!("  VERSION: \"{}\"", version);
+			println!("  GLSL_VERSION: \"{}\"", glsl_version);
+		}
 		
 		// Setup gl debug output
 		unsafe {
