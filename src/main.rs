@@ -1,5 +1,6 @@
 #![feature(str_strip)]
 #![allow(deprecated)]
+#![allow(unused_parens)]
 
 pub mod demo;
 pub mod window;
