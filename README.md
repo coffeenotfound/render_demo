@@ -4,8 +4,7 @@
 
 # Builing
 
-Building is done through cargo as normal and probably only works on Windows.
-You need atleast rustc 1.43.0-nightly.
+Building is done through cargo as normal but you need atleast rustc 1.43.0-nightly.
 
 On Windows make sure you have (pre-)compiled GLFW3.3+ libs installed and
 an environment variable named `GLFW_MINGW_LIBS` pointed to the folder
