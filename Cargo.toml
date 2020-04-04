@@ -29,6 +29,9 @@ fbxcel = "0.6.0"
 [profile.dev]
 opt-level = 0
 
+[profile.release]
+opt-level = 3
+
 # Optimize lodepng in dev profile
 [profile.dev.package.lodepng]
 opt-level = 3
