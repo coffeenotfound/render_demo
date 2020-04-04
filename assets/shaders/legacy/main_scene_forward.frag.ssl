@@ -90,7 +90,7 @@ vec3 cookTorranceSpecular(float NdotV, float NdotL, float NdotH, float HdotVorL,
 	float G = geometrySmithSchlickGGX(NdotL, NdotV, alpha);
 	
 	// Finally, solve our brdf and write out Ks
-	vec3 specular = (D * F * G) / (4.0 * NdotV * NdotH/*NdotL*/ + 0.0001); // 4.0 apparently is the correct factor eventhough the original formula used pi
+	vec3 specular = (D * F * G) / (4.0 * NdotV * NdotH/*NdotL*/ + 0.001); // 4.0 apparently is the correct factor eventhough the original formula used pi
 	Ks = F;
 	return specular;
 }
