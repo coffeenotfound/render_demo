@@ -1,7 +1,7 @@
 use glfw::{WindowMode, WindowHint, FlushedMessages, WindowEvent, Context, MouseButton};
 use std::cell::RefCell;
 use std::rc::{Rc, Weak};
-use crate::window::{GlfwContext, GLWindowContext};
+use crate::windowing::{GlfwContext, GLWindowContext};
 use std::sync::mpsc::Receiver;
 use crate::utils::bool_cmpxchg::BoolCompareExchange;
 use crate::utils::lazy_option::Lazy;

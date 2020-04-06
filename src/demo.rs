@@ -18,7 +18,7 @@ use crate::model::ply::{PlyMeshLoader, PlyReadError, PullEvent};
 use crate::render::{ImageFormat, RenderGlobal, TestVertexBuffer, Texture};
 use crate::render::separable_sss::{DEFAULT_HUMAN_SKIN_FALLOFF_FACTORS, DEFAULT_HUMAN_SKIN_STRENGTH_FACTORS, SubsurfaceKernelGenerator};
 use crate::utils::lazy_option::Lazy;
-use crate::window::{GlfwContext, Window};
+use crate::windowing::{GlfwContext, Window};
 use crate::utils::option_overwrite::OptionOverwrite;
 use std::ffi::{CStr};
 

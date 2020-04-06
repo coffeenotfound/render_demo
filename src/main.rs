@@ -3,7 +3,7 @@
 #![allow(unused_parens)]
 
 pub mod demo;
-pub mod window;
+pub mod windowing;
 pub mod utils;
 pub mod render;
 pub mod camera;

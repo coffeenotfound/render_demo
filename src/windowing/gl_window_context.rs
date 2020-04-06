@@ -1,4 +1,4 @@
-use crate::window::{Window};
+use crate::windowing::{Window};
 use std::rc::{Weak, Rc};
 use std::cell::RefCell;
 use gl_bindings::gl;
