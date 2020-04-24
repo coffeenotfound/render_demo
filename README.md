@@ -2,7 +2,7 @@
 
 <img src="https://raw.githubusercontent.com/coffeenotfound/render_demo/master/.repo/example_screenshot_subsurface_head2.jpg">
 
-# Builing
+# Building
 
 Building is done through cargo as normal but you need atleast rustc 1.43.0-nightly.
 
