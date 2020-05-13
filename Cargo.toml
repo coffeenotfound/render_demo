@@ -24,6 +24,7 @@ lazy_static = "1.4.0"
 png = "0.15.2"
 lodepng = "2.5.0"
 fbxcel = "0.6.0"
+ktx = "0.3.1"
 
 [target.'cfg(windows)'.dependencies]
 winapi = {version = "0.3.8", features = ["windef", "winuser", "wingdi"]}

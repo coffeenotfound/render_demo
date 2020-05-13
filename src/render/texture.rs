@@ -2,6 +2,8 @@ use gl_bindings::gl;
 use crate::render::ImageFormat;
 use std::path::Path;
 use std::error;
+use std::fs::OpenOptions;
+use ktx::KtxInfo;
 
 pub struct Texture {
 	width: u32,
@@ -60,6 +62,38 @@ impl Texture {
 			
 			handle_gl: 0,
 		}
+	}
+	
+	#[deprecated]
+	pub fn load_ktx_from_path(path: &Path, image_format: ImageFormat) -> Result<Texture, Box<dyn error::Error>> {
+		// Open file
+		let ktx_decoder = ktx::Decoder::new(OpenOptions::new().read(true).open(path)?)?;
+		
+		// Get header
+//		let header = ktx_decoder.header();
+		let (img_width, img_height) = (ktx_decoder.pixel_width(), ktx_decoder.pixel_height());
+		
+		// Read texture data
+		let base_level_data = ktx_decoder.read_textures().next().unwrap();
+		
+		// Allocate texture
+		let mut texture = Texture::new(img_width as u32, img_height as u32, 8, image_format);
+		texture.allocate();
+		
+		// Upload compressed image data
+		unsafe {
+			gl::CompressedTextureSubImage2D(texture.handle_gl, 0, 0, 0, img_width as gl::sizei, img_height as gl::sizei, image_format.as_gl_enum(), base_level_data.len() as gl::sizei, base_level_data.as_ptr() as *const gl::void);
+		}
+		
+		// Generate mipmaps
+		unsafe {
+			gl::TextureParameteri(texture.texture_gl(), gl::TEXTURE_MIN_FILTER, gl::LINEAR_MIPMAP_LINEAR as gl::int);
+			gl::TextureParameteri(texture.texture_gl(), gl::TEXTURE_MAG_FILTER, gl::LINEAR as gl::int);
+			
+			gl::GenerateTextureMipmap(texture.texture_gl());
+		}
+		
+		Ok(texture)
 	}
 	
 	pub fn load_png_from_path(path: &Path, image_format: ImageFormat) -> Result<Texture, Box<dyn error::Error>> {

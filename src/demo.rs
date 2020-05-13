@@ -289,8 +289,10 @@ impl Demo {
 //			let tex_normal = Texture::load_png_from_path(Path::new(r"C:/Users/Jan/Desktop/Lee Head/lee_head_normal.png"), ImageFormat::get(gl::RGBA8)).expect("Failed to load normal texture");
 //			let tex_transmission = Texture::load_png_from_path(Path::new(r"C:/Users/Jan/Desktop/Lee Head/lee_head_transmission.png"), ImageFormat::get(gl::RGBA8)).expect("Failed to load transmission texture");
 			
-			let tex_albedo = Texture::load_png_from_path(unsafe {&ASSET_MANAGER_INSTANCE}.resolve_asset_fs_path(&AssetPath::from_str("models/free_head/head_albedo.png")).as_path(), ImageFormat::get(gl::SRGB8_ALPHA8)).expect("Failed to load albedo texture");
-			let tex_normal = Texture::load_png_from_path(unsafe {&ASSET_MANAGER_INSTANCE}.resolve_asset_fs_path(&AssetPath::from_str("models/free_head/head_normal.png")).as_path(), ImageFormat::get(gl::RGBA8)).expect("Failed to load normal texture");
+			let tex_albedo = Texture::load_ktx_from_path(unsafe {&ASSET_MANAGER_INSTANCE}.resolve_asset_fs_path(&AssetPath::from_str("models/free_head/head_albedo_bc7.ktx")).as_path(), ImageFormat::get(gl::COMPRESSED_SRGB_ALPHA_BPTC_UNORM_ARB)).expect("Failed to load albedo texture");
+			let tex_normal = Texture::load_ktx_from_path(unsafe {&ASSET_MANAGER_INSTANCE}.resolve_asset_fs_path(&AssetPath::from_str("models/free_head/head_normal_bc1.ktx")).as_path(), ImageFormat::get(gl::COMPRESSED_RGB_S3TC_DXT1_EXT)).expect("Failed to load normal texture");
+//			let tex_albedo = Texture::load_png_from_path(unsafe {&ASSET_MANAGER_INSTANCE}.resolve_asset_fs_path(&AssetPath::from_str("models/free_head/head_albedo.png")).as_path(), ImageFormat::get(gl::SRGB8_ALPHA8)).expect("Failed to load albedo texture");
+//			let tex_normal = Texture::load_png_from_path(unsafe {&ASSET_MANAGER_INSTANCE}.resolve_asset_fs_path(&AssetPath::from_str("models/free_head/head_normal.png")).as_path(), ImageFormat::get(gl::RGBA8)).expect("Failed to load normal texture");
 			let tex_transmission = Texture::load_png_from_path(unsafe {&ASSET_MANAGER_INSTANCE}.resolve_asset_fs_path(&AssetPath::from_str("models/free_head/head_translucency.png")).as_path(), ImageFormat::get(gl::RGBA8)).expect("Failed to load transmission texture");
 			
 //			let tex_albedo = Texture::new(16, 16, 1, ImageFormat::get(gl::RGBA8));
