@@ -2,7 +2,7 @@ use std::error;
 use std::fs::{OpenOptions};
 use std::io::{self, Read};
 use crate::asset::{AssetPathBuf, AssetPath, ASSET_MANAGER_INSTANCE};
-use crate::render::shader::{ShaderProgram, Shader, ShaderCode, ProgramLinkOptions, ShaderStage, ShaderCompileOptions};
+use crate::render::shader::{ShaderProgram, Shader, ShaderCode, ProgramLinkOptions, ShaderStage, ShaderCompileOptions, ShaderCompileStatus, ProgramLinkStatus};
 use crate::render::shader::managed::ProgramAssetSchema;
 use crate::structured_shader_language::{SSLSourceParser, ParsedSource, SSLTranspiler};
 
@@ -59,13 +59,28 @@ impl ManagedProgram {
 			if let Some(shader) = program.attached_shader_mut(stage) {
 				let mut compile_options = ShaderCompileOptions::default();
 				
-				let _ = shader.compile(compile_options.with_info_log(false, true));
+				let compile_result = shader.compile(compile_options.with_info_log(false, true));
+				
+				match compile_result.status {
+					ShaderCompileStatus::Success => {},
+					_ => {
+						println!("Shader compile failed (status {:?}):", compile_result.status);
+						println!("{}", compile_result.info_log.as_deref().unwrap_or("<< no infolog >>"));
+					}
+				}
 			}
 		}
 		
 		// Link the program
-		let _ = program.link(ProgramLinkOptions::default().with_info_log(false, true));
-		
+		let link_result = program.link(ProgramLinkOptions::default().with_info_log(false, true));
+		match link_result.status {
+			ProgramLinkStatus::Success => {},
+			_ => {
+				println!("Program link failed (status {:?}):", link_result.status);
+				println!("{}", link_result.info_log.as_deref().unwrap_or("<< no infolog >>"));
+			}
+		}
+	
 		// Reset flag
 		self.needs_recompile = false;
 	}
