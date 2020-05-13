@@ -4,7 +4,7 @@ use std::fmt;
 use crate::model::ply::{PlyFileHeader, PlyElementDescriptor, standard_formats, PlyPropertyDescriptor, PlyScalar, PlyDatatype};
 use std::str::{SplitAsciiWhitespace, FromStr};
 use byteorder::{LittleEndian, ByteOrder};
-use num_traits::{self, NumCast};
+use num::{self, NumCast};
 use std::marker::PhantomData;
 
 pub struct PlyMeshLoader<'r, R: Read + Seek> {
@@ -357,9 +357,9 @@ impl<'a, 'r: 'a, R: Read + Seek> PlyElementParser<'a, 'r, R> {
 					let slice = &mut buffer[*buffer_pos..final_pos];
 					
 					match scalar_type {
-						S::uchar => slice[0] = num_traits::cast::<_, u8>(value).unwrap(),
-						S::uint => LittleEndian::write_u32(slice, num_traits::cast::<_, u32>(value).unwrap()),
-						S::float => LittleEndian::write_f32(slice, num_traits::cast::<_, f32>(value).unwrap()),
+						S::uchar => slice[0] = num::cast::<_, u8>(value).unwrap(),
+						S::uint => LittleEndian::write_u32(slice, num::cast::<_, u32>(value).unwrap()),
+						S::float => LittleEndian::write_f32(slice, num::cast::<_, f32>(value).unwrap()),
 						_ => unimplemented!("DEBUG: Datatype not implemented yet"),
 					}
 					

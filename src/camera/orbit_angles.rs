@@ -1,5 +1,5 @@
 use cgmath::{Vector3, BaseFloat, Euler, Angle, Rad, Zero};
-use num_traits::FromPrimitive;
+use num::FromPrimitive;
 
 pub struct OrbitAngles<N = f32, R = Rad<N>> where N: BaseFloat + FromPrimitive, R: Angle<Unitless = N> {
 	pub up_vector: Vector3<N>,
