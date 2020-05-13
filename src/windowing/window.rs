@@ -47,6 +47,11 @@ impl Window {
 			window_glfw.set_key_polling(true);
 			window_glfw.set_scroll_polling(true);
 			
+			// Set initial window color to avoid artifacts (only on windows for now)
+			if cfg!(windows) {
+				set_initial_background_color_win32(&window_glfw, 0x000000);
+			}
+			
 			// Create the gl context object
 			self.gl_context = Some(Rc::new(RefCell::new(GLWindowContext::from_window(Weak::clone(&self.self_reference)))));
 			
@@ -187,5 +192,21 @@ impl Window {
 		
 		// Finally, return as shared ref
 		shared_ref
+	}
+}
+
+#[cfg(windows)]
+fn set_initial_background_color_win32(window_glfw: &glfw::Window, color_bgr: u32) {
+	use winapi::shared::windef;
+	use winapi::um::winuser;
+	use winapi::um::wingdi;
+	
+	// Get glfw window hwnd
+	let hwnd = window_glfw.get_win32_window() as windef::HWND;
+	
+	// Set initial window background color (by setting win32 window background brush)
+	unsafe {
+		let black_background_brush = wingdi::CreateSolidBrush(color_bgr as windef::COLORREF);
+		winuser::SetClassLongPtrA(hwnd, winuser::GCLP_HBRBACKGROUND, black_background_brush as winapi::shared::basetsd::LONG_PTR);
 	}
 }
