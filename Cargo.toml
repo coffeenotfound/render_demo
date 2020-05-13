@@ -26,6 +26,9 @@ png = "0.15.2"
 lodepng = "2.5.0"
 fbxcel = "0.6.0"
 
+[target.'cfg(windows)'.dependencies]
+winapi = {version = "0.3.8", features = ["windef", "winuser", "wingdi"]}
+
 [profile.dev]
 codegen-units = 12
 opt-level = 0
