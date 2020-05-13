@@ -90,7 +90,7 @@ impl Demo {
 			test_head_model: None,
 			
 			test_active_camera: None,
-			test_camera_orbit: {let mut a = OrbitAngles::new_zero(vec3(0.0, 1.0, 0.0), vec3(0.0, 0.0, -1.0)); a.distance = 3.5; a.center = vec3(0.0, 1.75, 0.0); a},
+			test_camera_orbit: {let mut a = OrbitAngles::new_zero(vec3(0.0, 1.0, 0.0), vec3(0.0, 0.0, -1.0)); a.distance = 6.0; a.center = vec3(0.0, 1.75, 0.0); a},
 			test_camera_carousel_state: DemoCameraCarouselState::new(),
 		})
 	}
