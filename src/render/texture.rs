@@ -96,6 +96,7 @@ impl Texture {
 		Ok(texture)
 	}
 	
+	#[deprecated]
 	pub fn load_png_from_path(path: &Path, image_format: ImageFormat) -> Result<Texture, Box<dyn error::Error>> {
 		// Load texture
 		let result = lodepng::decode32_file(path)?;
