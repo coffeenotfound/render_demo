@@ -107,10 +107,10 @@ impl Framebuffer {
 			
 			// Set drawbuffers
 			unsafe {
-//				gl::NamedFramebufferDrawBuffers(self.handle_gl, draw_buffer_table.len() as gl::GLsizei, draw_buffer_table.as_ptr());
+				// TODO: Actually set the draw buffers based on how many attachments we have
 				// Somehow the above doesn't work and generate an GL_INVALID_VALUE: Draw buffer is invalid error
-				let debug_draw_buffers = [gl::COLOR_ATTACHMENT0, gl::COLOR_ATTACHMENT1];
-				gl::NamedFramebufferDrawBuffers(self.handle_gl, 2, debug_draw_buffers.as_ptr());
+				let debug_draw_buffers = [gl::COLOR_ATTACHMENT0, gl::COLOR_ATTACHMENT1, gl::COLOR_ATTACHMENT2];
+				gl::NamedFramebufferDrawBuffers(self.handle_gl, debug_draw_buffers.len() as gl::sizei, debug_draw_buffers.as_ptr());
 			}
 			
 			// Check framebuffer status

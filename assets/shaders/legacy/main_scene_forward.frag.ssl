@@ -21,7 +21,8 @@ in vec3 tVertexColor;
 flat in float tFuckOffPrimitiveIDFuckingShitDoesnWorkIndex;
 
 layout(location = 0) out vec3 outFrag; // HDR GL_R11F_G11F_B10F
-layout(location = 1) out vec4 outEdgeHeuristic; // GL_RGBA8  // GL_RG16_SNORM
+layout(location = 1) out vec3 outEdgeHeuristic; // GL_RGB8  // GL_RG16_SNORM
+layout(location = 2) out vec3 outEdgeHeuristic2; // GL_RGB8  // GL_RG16_SNORM
 
 vec3 separablesssTransmittance(vec2 modelTexCoord, float translucency, float sssWidth, vec3 worldPosition, vec3 worldNormal, vec3 lightVector, sampler2D transmissionTex) {
 	float scale = 8.25 * (1.0 - translucency) / sssWidth;
@@ -95,6 +96,11 @@ vec3 cookTorranceSpecular(float NdotV, float NdotL, float NdotH, float HdotVorL,
 	return specular;
 }
 
+// Rerange x. At edge0 return 0, at edge1 return 1, linearly interpolate between them and then clamp
+float rangecoeff(float edge0, float edge1, float x) {
+	return clamp((x - edge0) / (edge1 - edge0), 0.0, 1.0);
+}
+
 void main() {
 	vec2 texCoord = tModelTexCoord;
 	
@@ -124,6 +130,32 @@ void main() {
 	
 	vec3 radiance = vec3(0.0);
 	/* per light */ {
+		/*
+		vec3 L;
+		{// DEBUG: Area light test
+			vec3 vertex = tVertexWorldspace;
+			
+			vec3 arealightCenter = vec3(-3.0, 3.0, 4.0);
+			vec3 arealightNormal = normalize(-vec3(-3.0, 3.0, 4.0));
+			vec3 arealightTangent = vec3(-1.0, 1.0, 1.0) * arealightNormal.xyz;
+			vec2 arealightDimensions = vec2(5.0);
+			vec3 arealightBitangent = cross(arealightNormal, arealightTangent);
+			
+			vec3 optimalReflectionVec = reflect(V, N);
+			
+			float d = dot(arealightCenter - vertex, arealightNormal) / dot(optimalReflectionVec, arealightNormal);
+			vec3 intersection = vertex + optimalReflectionVec * d;
+			
+			vec3 intersectionVec = intersection - arealightCenter;
+			vec2 pxy = clamp(vec2(dot(intersectionVec, arealightTangent), dot(intersectionVec, arealightBitangent)), -arealightDimensions.xy, arealightDimensions.xy);
+			//vec2 pxy = vec2(dot(intersectionVec, arealightTangent), dot(intersectionVec, arealightBitangent));
+			
+			vec3 adjustedLightSource = arealightCenter + arealightTangent * pxy.x + arealightBitangent * pxy.y;
+			
+			L = normalize(adjustedLightSource - vertex);
+		}
+		*/
+		
 		float lightAttenuation = 1.0;
 		
 		//vec3 L = normalize(vec3(0.2, 0.5, 0.4)); // DEBUG:
@@ -157,9 +189,77 @@ void main() {
 	
 	// Ambient light
 //	radiance += albedo * inverseMetalness * vec3(0.01);
+	radiance += albedo * inverseMetalness * vec3(0.01);
 	
 	vec3 shadedFrag = radiance;
+	//vec3 shadedFrag = vec3(1.0);
 	
+	{
+		vec3 baryCoord = tBaryCoord.xyz;
+		
+		// Extrapolate distance to vertex based on bary to get the actual distance to the edge 
+	//	float edgeDist0 = distance(gl_FragCoord.xy, tBaryScreenCoords[0]) / (1.0 - baryCoord[0]) - distance(gl_FragCoord.xy, tBaryScreenCoords[0]);
+	//	float edgeDist1 = distance(gl_FragCoord.xy, tBaryScreenCoords[1]) / (1.0 - baryCoord[1]) - distance(gl_FragCoord.xy, tBaryScreenCoords[1]);
+	//	float edgeDist2 = distance(gl_FragCoord.xy, tBaryScreenCoords[2]) / (1.0 - baryCoord[2]) - distance(gl_FragCoord.xy, tBaryScreenCoords[2]);
+				
+		// Might want to optimize this with https://en.wikipedia.org/wiki/Distance_from_a_point_to_a_line
+		// and a custom bit twiddling rsqrt approximation e.g. https://github.com/BruceKnowsHow/Ebin-Shaders/blob/master/shaders/lib/Utility/fastMath.glsl
+//		vec2 edgeTangent0 = vec2(-tBaryNormals[0].y, tBaryNormals[0].x);
+//		vec2 edgeTangent1 = vec2(-tBaryNormals[1].y, tBaryNormals[1].x);
+//		vec2 edgeTangent2 = vec2(-tBaryNormals[2].y, tBaryNormals[2].x);
+//		float edgeDist0 = distance(gl_FragCoord.xy, tBaryScreenCoords[1] + edgeTangent0 * dot(gl_FragCoord.xy - tBaryScreenCoords[1], edgeTangent0));
+//		float edgeDist1 = distance(gl_FragCoord.xy, tBaryScreenCoords[2] + edgeTangent1 * dot(gl_FragCoord.xy - tBaryScreenCoords[2], edgeTangent1));
+//		float edgeDist2 = distance(gl_FragCoord.xy, tBaryScreenCoords[0] + edgeTangent2 * dot(gl_FragCoord.xy - tBaryScreenCoords[0], edgeTangent2));
+		
+		float edgeDist0 = abs(dot(vec4(tBaryScreenCoords[2].yx - tBaryScreenCoords[1].yx, tBaryScreenCoords[2].xy), vec4(gl_FragCoord.x, -gl_FragCoord.y, tBaryScreenCoords[1].y, -tBaryScreenCoords[1].x))) / distance(tBaryScreenCoords[1].xy, tBaryScreenCoords[2].xy);
+		float edgeDist1 = abs(dot(vec4(tBaryScreenCoords[0].yx - tBaryScreenCoords[2].yx, tBaryScreenCoords[0].xy), vec4(gl_FragCoord.x, -gl_FragCoord.y, tBaryScreenCoords[2].y, -tBaryScreenCoords[2].x))) / distance(tBaryScreenCoords[2].xy, tBaryScreenCoords[0].xy);
+		float edgeDist2 = abs(dot(vec4(tBaryScreenCoords[1].yx - tBaryScreenCoords[0].yx, tBaryScreenCoords[1].xy), vec4(gl_FragCoord.x, -gl_FragCoord.y, tBaryScreenCoords[0].y, -tBaryScreenCoords[0].x))) / distance(tBaryScreenCoords[0].xy, tBaryScreenCoords[1].xy);
+		
+		const float PI = 3.141592;
+		const float TAU = 2.0 * PI;
+		
+		vec3 normalsX = vec3(tBaryNormals[0].x, tBaryNormals[1].x, tBaryNormals[2].x);
+		vec3 normalsY = vec3(tBaryNormals[0].y, tBaryNormals[1].y, tBaryNormals[2].y);
+		vec3 dists = vec3(edgeDist0, edgeDist1, edgeDist2);
+		
+		vec3 edgeAngleIndices = (atan(-normalsY, normalsX) / TAU + 0.5);
+		vec3 edgeDistIndices = clamp(dists / 0.55, vec3(0.0), vec3(1.0));
+		
+		outEdgeHeuristic = edgeAngleIndices;
+		outEdgeHeuristic2 = edgeDistIndices;
+		
+		
+		vec3 baryEdgeWidths = vec3(edgeDist0, edgeDist1, edgeDist2);
+		
+		//vec2 baryNormal0 = vec2(baryDerivativeX[0], baryDerivativeY[0]);
+		vec2 baryNormal0 = tBaryNormals[0];
+		//vec2 n0 = step(vec2(0.5), abs(baryNormal0)) * sign(baryNormal0);
+		vec2 n0 = baryNormal0;
+		//vec4 coeffs0 = max(vec4(0.0), vec4(n0.x, n0.y, -n0.x, -n0.y)) * rangecoeff(baryEdgeWidths[0] * 0.5, 0.0, baryCoord[0]);
+		vec4 coeffs0 = max(vec4(0.0), vec4(n0.x, n0.y, -n0.x, -n0.y)) * rangecoeff(0.5, 0.0, baryEdgeWidths[0]);
+		
+		//vec2 baryNormal1 = vec2(baryDerivativeX[1], baryDerivativeY[1]);
+		vec2 baryNormal1 = tBaryNormals[1];
+		//vec2 n1 = step(vec2(0.5), abs(baryNormal1)) * sign(baryNormal1);
+		vec2 n1 = baryNormal1;
+		//vec4 coeffs1 = max(vec4(0.0), vec4(n1.x, n1.y, -n1.x, -n1.y)) * rangecoeff(baryEdgeWidths[1] * 0.5, 0.0, baryCoord[1]);
+		vec4 coeffs1 = max(vec4(0.0), vec4(n1.x, n1.y, -n1.x, -n1.y)) * rangecoeff(0.5, 0.0, baryEdgeWidths[1]);
+		
+		//vec2 baryNormal2 = vec2(baryDerivativeX[2], baryDerivativeY[2]);
+		vec2 baryNormal2 = tBaryNormals[2];
+		//vec2 n2 = step(vec2(0.5), abs(baryNormal2)) * sign(baryNormal2);
+		vec2 n2 = baryNormal2;
+		//vec4 coeffs2 = max(vec4(0.0), vec4(n2.x, n2.y, -n2.x, -n2.y)) * rangecoeff(baryEdgeWidths[2] * 0.5, 0.0, baryCoord[2]);
+		vec4 coeffs2 = max(vec4(0.0), vec4(n2.x, n2.y, -n2.x, -n2.y)) * rangecoeff(0.5, 0.0, baryEdgeWidths[2]);
+		
+		vec4 actualCoeffs = max(coeffs0, max(coeffs1, coeffs2));
+		//outEdgeHeuristic = actualCoeffs;
+		
+		// DEBUG:
+		//shadedFrag = vec3(actualCoeffs.x, 0.0, 0.0);
+		//shadedFrag = vec3(1.0);
+	}
+ 	
 	/*
 	// Calculate edge heuristic
 	float minBary = min(tBaryCoord.x, min(tBaryCoord.y, tBaryCoord.z));

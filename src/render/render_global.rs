@@ -83,7 +83,9 @@ impl RenderGlobal {
 				
 				fbo.add_attachment(FramebufferAttachment::from_new_texture(AttachmentPoint::Depth, ImageFormat::get(gl::DEPTH_COMPONENT32F)));
 				fbo.add_attachment(FramebufferAttachment::from_new_texture(AttachmentPoint::Color(0), ImageFormat::get(gl::R11F_G11F_B10F)));
-				fbo.add_attachment(FramebufferAttachment::from_new_texture(AttachmentPoint::Color(1), ImageFormat::get(gl::RGBA8)));
+				fbo.add_attachment(FramebufferAttachment::from_new_texture(AttachmentPoint::Color(1), ImageFormat::get(gl::RGB8)));
+				fbo.add_attachment(FramebufferAttachment::from_new_texture(AttachmentPoint::Color(2), ImageFormat::get(gl::RGB8)));
+//				fbo.add_attachment(FramebufferAttachment::from_new_texture(AttachmentPoint::Color(1), ImageFormat::get(gl::RGBA8)));
 //				fbo.add_attachment(FramebufferAttachment::from_new_texture(AttachmentPoint::Color(1), ImageFormat::get(gl::RG16_SNORM)));
 				
 				fbo.allocate();
@@ -383,6 +385,7 @@ impl RenderGlobal {
 //				gl::BindTextureUnit(0, RefCell::borrow(&main_fbo.get_attachment(AttachmentPoint::Color(0)).unwrap().texture).texture_gl());
  				gl::BindTextureUnit(0, RefCell::borrow(&self.separable_sss_system.fbo_resolve_final.get_attachment(AttachmentPoint::Color(0)).unwrap().texture).texture_gl());
 				gl::BindTextureUnit(1, RefCell::borrow(&main_fbo.get_attachment(AttachmentPoint::Color(1)).unwrap().texture).texture_gl());
+				gl::BindTextureUnit(2, RefCell::borrow(&main_fbo.get_attachment(AttachmentPoint::Color(2)).unwrap().texture).texture_gl());
 				
 				// Bind back buffer
 				gl::BindFramebuffer(gl::FRAMEBUFFER, 0);
