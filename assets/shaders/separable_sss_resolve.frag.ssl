@@ -5,7 +5,7 @@
 #define SSSS_TEST_ENABLE 1
 
 #ifndef SSSS_FOLLOW_SURFACE
-#define SSSS_FOLLOW_SURFACE 1
+#	define SSSS_FOLLOW_SURFACE 1
 #endif
 
 #define SSSS_JITTER 1
