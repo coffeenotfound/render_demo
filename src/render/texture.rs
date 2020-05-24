@@ -85,13 +85,13 @@ impl Texture {
 			gl::CompressedTextureSubImage2D(texture.handle_gl, 0, 0, 0, img_width as gl::sizei, img_height as gl::sizei, image_format.as_gl_enum(), base_level_data.len() as gl::sizei, base_level_data.as_ptr() as *const gl::void);
 		}
 		
-		// Generate mipmaps
-		unsafe {
-			gl::TextureParameteri(texture.texture_gl(), gl::TEXTURE_MIN_FILTER, gl::LINEAR_MIPMAP_LINEAR as gl::int);
-			gl::TextureParameteri(texture.texture_gl(), gl::TEXTURE_MAG_FILTER, gl::LINEAR as gl::int);
-			
-			gl::GenerateTextureMipmap(texture.texture_gl());
-		}
+//		// Generate mipmaps
+//		unsafe {
+//			gl::TextureParameteri(texture.texture_gl(), gl::TEXTURE_MIN_FILTER, gl::LINEAR_MIPMAP_LINEAR as gl::int);
+//			gl::TextureParameteri(texture.texture_gl(), gl::TEXTURE_MAG_FILTER, gl::LINEAR as gl::int);
+//			
+//			gl::GenerateTextureMipmap(texture.texture_gl());
+//		}
 		
 		Ok(texture)
 	}
