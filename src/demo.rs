@@ -1,8 +1,9 @@
 use std::cell::RefCell;
 use std::error;
+use std::ffi::CStr;
 use std::fs::OpenOptions;
 use std::panic;
-use std::path::{PathBuf};
+use std::path::PathBuf;
 use std::rc::Rc;
 use std::sync::{self, Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -18,9 +19,8 @@ use crate::model::ply::{PlyMeshLoader, PlyReadError, PullEvent};
 use crate::render::{ImageFormat, RenderGlobal, TestVertexBuffer, Texture};
 use crate::render::separable_sss::{DEFAULT_HUMAN_SKIN_FALLOFF_FACTORS, DEFAULT_HUMAN_SKIN_STRENGTH_FACTORS, SubsurfaceKernelGenerator};
 use crate::utils::lazy_option::Lazy;
-use crate::windowing::{GlfwContext, Window};
 use crate::utils::option_overwrite::OptionOverwrite;
-use std::ffi::{CStr};
+use crate::windowing::{GlfwContext, Window};
 
 pub static mut DEMO_INSTANCE: Option<Demo> = None;
 
