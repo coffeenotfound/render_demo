@@ -1,4 +1,4 @@
-use crate::pots::alloc::ObjectSlotHeader;
+use crate::pots::object::ObjectSlotHeader;
 
 #[derive(Copy, Clone, Eq, Hash, Debug)]
 #[repr(transparent)]

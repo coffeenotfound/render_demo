@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use crate::pots::{ObjectAllocationAddress, ObjectName, ObjectReference};
+use crate::pots::object::{ObjectAllocationAddress, ObjectName, ObjectReference};
 
 pub struct ObjectNametable {
 	name_hashmap: HashMap<ObjectName, ObjectAllocationAddress>,

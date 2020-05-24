@@ -1,6 +1,6 @@
 use std::sync::Arc;
-use crate::pots::alloc::{KindInfo, ObjectNametable};
-use crate::pots::ObjectName;
+use crate::pots::object::{ObjectName, ObjectNametable};
+use crate::pots::prototype::{KindInfo};
 
 pub struct ObjectStore {
 	nametable: ObjectNametable,
