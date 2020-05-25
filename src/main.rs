@@ -12,6 +12,7 @@ pub mod math;
 pub mod asset;
 pub mod structured_shader_language;
 pub mod btex;
+pub mod garbagecs;
 
 fn main() {
 //	// DEBUG:
