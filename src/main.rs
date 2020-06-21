@@ -14,6 +14,7 @@ pub mod structured_shader_language;
 pub mod btex;
 pub mod world;
 pub mod garbagecs;
+pub mod game;
 
 fn main() {
 //	// DEBUG:
