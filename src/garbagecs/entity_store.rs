@@ -1,19 +1,28 @@
 use std::collections::HashMap;
-use std::sync::Arc;
-use crate::garbagecs::{Prototype, PrototypeId};
+use std::sync::{Arc, Mutex};
+use crate::garbagecs::prototype::{PrototypeId, EntityPrototype};
+use crate::garbagecs::entity_trait::TraitInstance;
 
 pub struct EntityStore {
 	entity_slabs: HashMap<PrototypeId, EntitySlab>,
 }
 
-pub struct EntitySlab {
-	entities: Vec<EntityData>,
+impl EntityStore {
+	pub fn new() -> Self {
+		Self {
+			entity_slabs: HashMap::new(),
+		}
+	}
 }
 
-struct EntityData {
+pub struct EntitySlab {
+	entities: Vec<Arc<Mutex<EntityData>>>,
+}
+
+pub(in super) struct EntityData {
 	entity_id: EntityId,
-	prototype_ref: Arc<Prototype>,
-	trait_data: Vec<dyn Trait>,
+	prototype_ref: Arc<EntityPrototype>,
+	trait_data: Vec<Box<dyn TraitInstance>>,
 }
 
 #[repr(transparent)]
@@ -22,5 +31,5 @@ pub struct EntityId {
 }
 
 pub struct EntityReference {
-	pub(in super) raw_ref: Arc<EntityData>,
+	pub(in super) raw_ref: Arc<Mutex<EntityData>>,
 }

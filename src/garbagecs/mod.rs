@@ -3,7 +3,8 @@
 //!
 //! Pronounced /gar-bæg/-ecs
 
-mod prototype; pub use prototype::*;
-mod entity_trait; pub use entity_trait::*;
+pub mod prototype;
+pub mod entity_trait;
+pub mod system;
+
 mod entity_store; pub use entity_store::*;
-mod prototype_registry; pub use prototype_registry::*;
