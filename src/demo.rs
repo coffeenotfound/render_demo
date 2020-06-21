@@ -21,6 +21,10 @@ use crate::render::separable_sss::{DEFAULT_HUMAN_SKIN_FALLOFF_FACTORS, DEFAULT_H
 use crate::utils::lazy_option::Lazy;
 use crate::utils::option_overwrite::OptionOverwrite;
 use crate::windowing::{GlfwContext, Window};
+use crate::world::Universe;
+use crate::garbagecs::prototype::{EntityPrototype, EntityTrait, PrototypeBuilder};
+use crate::garbagecs::entity_trait::TraitBuilder;
+use crate::game::core::traits::{Transform, WorldEntityTrait};
 
 pub static mut DEMO_INSTANCE: Option<Demo> = None;
 
@@ -50,12 +54,17 @@ pub struct Demo {
 	
 	pub render_global: RenderGlobal,
 	
+	pub current_universe: Option<Universe>,
+	
 	pub test_teapot_vbo: Option<TestVertexBuffer>,
 	pub test_head_model: Option<TestHeadModel>,
 	
 	pub test_active_camera: Option<Arc<Mutex<Camera>>>,
 	pub test_camera_orbit: OrbitAngles,
 	pub test_camera_carousel_state: DemoCameraCarouselState,
+	
+	pub trait_world_entity: Option<Arc<EntityTrait>>,
+	pub proto_test_prop: Option<Arc<EntityPrototype>>,
 }
 
 impl Demo {
@@ -86,12 +95,17 @@ impl Demo {
 			
 			render_global: RenderGlobal::new(),
 			
+			current_universe: None,
+			
 			test_teapot_vbo: None,
 			test_head_model: None,
 			
 			test_active_camera: None,
 			test_camera_orbit: {let mut a = OrbitAngles::new_zero(vec3(0.0, 1.0, 0.0), vec3(0.0, 0.0, -1.0)); a.distance = 6.0; a.center = vec3(0.0, 1.75, 0.0); a},
 			test_camera_carousel_state: DemoCameraCarouselState::new(),
+			
+			trait_world_entity: None,
+			proto_test_prop: None,
 		})
 	}
 	
@@ -327,6 +341,20 @@ impl Demo {
 		
 		// Initialize render global
 		self.render_global.initialize(resolution).expect("Failed to init render global");
+		
+		// DEBUG: Create test universe
+		self.current_universe = Some(Universe::new());
+		
+		// DEBUG: Register traits and prototypes
+		let proto_reg = &mut self.current_universe.need_mut().prototype_registry;
+		
+		self.trait_world_entity = Some(proto_reg.register_trait(TraitBuilder::new(Box::new(|| Box::new(WorldEntityTrait {transform: Transform::default()})))));
+		
+		self.proto_test_prop = Some(self.current_universe.need_mut().prototype_registry.register_prototype({
+			let mut b = PrototypeBuilder::new();
+			b.with(Arc::clone(self.trait_world_entity.need()));
+			b
+		}));
 		
 		// Main loop
 		'main_loop: loop {
