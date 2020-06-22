@@ -23,7 +23,7 @@ in vec3 tVertexColor;
 flat in float tFuckOffPrimitiveIDFuckingShitDoesnWorkIndex;
 
 layout(location = 0) out vec3 outFrag; // HDR GL_R11F_G11F_B10F
-layout(location = 1) out vec3 outEdgeHeuristic; // GL_RGB8  // GL_RG16_SNORM
+layout(location = 1) out uvec4 outEdgeHeuristic; // GL_RGBA8UI // GL_RGB8  // GL_RG16_SNORM
 layout(location = 2) out vec3 outEdgeHeuristic2; // GL_RGB8  // GL_RG16_SNORM
 
 vec3 separablesssTransmittance(vec2 modelTexCoord, float translucency, float sssWidth, vec3 worldPosition, vec3 worldNormal, vec3 lightVector, sampler2D transmissionTex) {
@@ -227,8 +227,8 @@ void main() {
 		vec3 edgeAngleIndices = (atan(-normalsY, normalsX) / TAU + 0.5);
 		vec3 edgeDistIndices = clamp(dists / 0.55, vec3(0.0), vec3(1.0));
 		
-		outEdgeHeuristic = edgeAngleIndices;
-		outEdgeHeuristic2 = edgeDistIndices;
+	//	outEdgeHeuristic = edgeAngleIndices;
+	//	outEdgeHeuristic2 = edgeDistIndices;
 		
 		
 		vec3 baryEdgeWidths = vec3(edgeDist0, edgeDist1, edgeDist2);
@@ -262,6 +262,32 @@ void main() {
 		//shadedFrag = vec3(1.0);
 	}
  	
+	// DEBUG:
+// //	if((gl_SampleMaskIn[0] & 1) != 0) {
+// 	if(bitCount(gl_SampleMaskIn[0]) != 1) {
+// //	if(gl_SampleMaskIn[0] != 4) {
+// 		shadedFrag = vec3(1.0);
+// 	}
+// 	else {
+// 		shadedFrag = vec3(1.0, 0.0, 0.0);
+// 	}
+//	shadedFrag = vec3(1.0);
+	
+	vec3 cover0 = interpolateAtOffset(tBaryCoord, vec2(0.125, 0.125));
+	vec3 cover1 = interpolateAtOffset(tBaryCoord, vec2(-0.125, 0.875));
+	vec3 cover2 = interpolateAtOffset(tBaryCoord, vec2(0.125, 0.125));
+	vec3 cover3 = interpolateAtOffset(tBaryCoord, vec2(0.875, -0.125));
+	
+	vec4 coverMaxs = min(vec4(cover0.x, cover1.x, cover2.x, cover3.x), min(vec4(cover0.y, cover1.y, cover2.y, cover3.y), vec4(cover0.z, cover1.z, cover2.z, cover3.z)));
+	
+	uint coverMask = 
+		(uint(coverMaxs.x < 0.0)) |
+		(uint(coverMaxs.y < 0.0) << 1) |
+		(uint(coverMaxs.z < 0.0) << 2) |
+	  	(uint(coverMaxs.w < 0.0) << 4);
+	
+	outEdgeHeuristic = uvec4(coverMask, 0, 0, 0);
+	
 	/*
 	// Calculate edge heuristic
 	float minBary = min(tBaryCoord.x, min(tBaryCoord.y, tBaryCoord.z));

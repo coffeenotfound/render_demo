@@ -5,8 +5,9 @@
 #extension GL_NV_gpu_shader5 : require
 
 layout(binding = 0) uniform sampler2D texSceneHDR;
+layout(binding = 4) uniform sampler2DMS texSceneDepthMS; // DEBUG: Used for test SDAA impl
 
-layout(binding = 1) uniform sampler2D texEHAAEdgeHeuristic;
+layout(binding = 1) uniform usampler2D texEHAAEdgeHeuristic;
 layout(binding = 2) uniform sampler2D texEHAAEdgeHeuristic2;
 
 in vec2 vScreenTexCoord;
@@ -89,6 +90,97 @@ void main() {
 	// Sample scene frag
 	vec3 sceneFragHDR = texture(texSceneHDR, vScreenTexCoord.st).rgb;
 	
+	// DEBUG:
+	ivec2 iscreenUV = ivec2(vScreenTexCoord.st * vec2(1600.0, 900.0));
+	
+	float depthVariance = 0.0;
+	float depthMean = 0.0;
+	const int NUM_SAMPLES = 5;
+	for(int i = 0; i < NUM_SAMPLES; i++) {
+		float depth = texelFetch(texSceneDepthMS, iscreenUV.st, i).r;
+		depthMean += depth / float(NUM_SAMPLES);
+	}
+	for(int i = 0; i < NUM_SAMPLES; i++) {
+		float elem = texelFetch(texSceneDepthMS, iscreenUV.st, i).r - depthMean;
+		depthVariance += (elem*elem) / float(NUM_SAMPLES);
+	}
+	
+//	sceneFragHDR = vec3(depthMean * 64.0);
+//	sceneFragHDR = vec3(depthVariance * 10000.0);
+	
+	// DEBUG:
+	float centerDepth = texelFetch(texSceneDepthMS, iscreenUV.st, 0).r;
+	
+	/*
+	const ivec2 pullNeighborOffsets[5] = {
+		ivec2(0, 0),
+		
+		ivec2(+1, 0),
+		ivec2(-1, 0),
+		ivec2(0, +1),
+		ivec2(0, -1),
+	};
+	*/
+	const ivec2 pullNeighborOffsets[8] = {
+		ivec2(+1, 0),
+		ivec2(-1, 0),
+		ivec2(0, +1),
+		ivec2(0, -1),
+		
+		ivec2(0, +1),
+		ivec2(0, -1),
+		ivec2(+1, 0),
+		ivec2(-1, 0),
+	};
+	
+	uint coverageMask = texture(texEHAAEdgeHeuristic, vScreenTexCoord.st).r;
+	
+	float pulledNum = 0.0;
+	vec3 pulledAccum = vec3(0.0);
+	
+	float depthMeanQuantized = 1.0;
+	for(int i = 1; i < NUM_SAMPLES; i++) {
+		float otherDepth = texelFetch(texSceneDepthMS, iscreenUV.st, i).r;
+		
+		// It should work to just calc one EPS value based on the center/color sample depth
+		// that is then used for comparison with all the other samples.
+		// This means we only have to do one linearization operation (for the EPS)
+		// instead of one for each sample!
+		float EPS = 0.00001;
+//		if(centerDepth + EPS < otherDepth || centerDepth - EPS > otherDepth) {
+//		if((centerDepth == 0.0) ^^ (otherDepth == 0.0)) {
+		if(((coverageMask >> (i - 1)) & 1) == 0) {
+			const float fac = 1.0;
+			pulledNum += fac;
+//			pulledAccum += (1.0/5.0) * textureOffset(texSceneHDR, vScreenTexCoord.st, -pullNeighborOffsets[i]).rgb;
+			pulledAccum += (fac/float(NUM_SAMPLES)) * tonemapFrag(textureOffset(texSceneHDR, vScreenTexCoord.st, pullNeighborOffsets[i]).rgb, 1.0);
+			
+			depthMeanQuantized -= (1.0/float(NUM_SAMPLES));
+		}
+	}
+	
+	// if(dot(sceneFragHDR, vec3(1.0)) != 0.0) {
+	// 	sceneFragHDR = vec3(1.0);
+	// }
+	
+//	sceneFragHDR = tonemapFrag(sceneFragHDR, 1.0) * (centerDepth == 0.0 ? vec3(1.0 - depthMeanQuantized) : vec3(depthMeanQuantized));
+	sceneFragHDR = (1.0 - min(1.0, pulledNum/float(NUM_SAMPLES)))*tonemapFrag(sceneFragHDR, 1.0) + pulledAccum;
+//	sceneFragHDR = tonemapFrag(sceneFragHDR, 1.0);
+//	sceneFragHDR = (1.0 - min(1.0, pulledNum/float(NUM_SAMPLES)))*tonemapFrag(sceneFragHDR, 1.0) + pulledAccum;
+//	sceneFragHDR = (1.0 - pulledNum/5.0)*sceneFragHDR + pulledAccum;
+//	sceneFragHDR = sceneFragHDR*depthMeanQuantized;
+//	sceneFragHDR = sceneFragHDR * depthMean * 512.0;
+//	sceneFragHDR = pulledAccum;
+//	sceneFragHDR = sceneFragHDR*128.0*depthMean;
+//	sceneFragHDR = vec3(step(0.1, dot(sceneFragHDR, vec3(1.0))) * depthMeanQuantized);
+//	sceneFragHDR = vec3(depthMeanQuantized);
+	
+	/*
+	if(centerDepth == 0.0) {
+		sceneFragHDR.b += 0.5;
+	}
+	*/
+	
 	{// New algorithm
 		// PROBLEM #1: We can still sample our own triangle by accident on slight angles
 		// PROBLEM #2: How to blend pulled samples together? (Possibly related to the problem #1)
@@ -105,6 +197,7 @@ void main() {
 		//sceneFragHDR = vec3(edgeCoeffs[0], 0.0, 0.0);
 		*/
 		
+		/*
 		// DEBUG:
 		vec3 ownEdgeAngleIndicesFloat = texture(texEHAAEdgeHeuristic, vScreenTexCoord.st).xyz;
 		vec3 ownEdgeDistIndicesFloat = texture(texEHAAEdgeHeuristic2, vScreenTexCoord.st).xyz;
@@ -147,6 +240,7 @@ void main() {
 			vec3 neighborFrag = textureOffset(texSceneHDR, vScreenTexCoord.st, ivec2(1, 0)).rgb;
 			//sceneFragHDR = mix(sceneFragHDR, neighborFrag, pullFactor);
 		}
+		*/
 		
 		/*
 		float maxCoeff = max(max(edgeCoeffs[0], edgeCoeffs[1]), max(edgeCoeffs[2], edgeCoeffs[3]));
@@ -182,7 +276,8 @@ void main() {
 	
 	// Tone map and gamma correct fragment
 	float exposure = 1.0;
-	vec3 tonemappedFrag = tonemapFrag(sceneFragHDR, exposure);
+//	vec3 tonemappedFrag = tonemapFrag(sceneFragHDR, exposure);
+	vec3 tonemappedFrag = sceneFragHDR;
 	
 	// Write final processed frag
 	outFragProcessed = tonemappedFrag;

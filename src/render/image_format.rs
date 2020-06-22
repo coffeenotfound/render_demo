@@ -16,3 +16,10 @@ impl ImageFormat {
 		self.format_gl
 	}
 }
+
+impl PartialEq for ImageFormat {
+	fn eq(&self, other: &Self) -> bool {
+		(self.format_gl == other.format_gl)
+	}
+}
+impl Eq for ImageFormat {}

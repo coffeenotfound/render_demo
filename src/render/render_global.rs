@@ -7,7 +7,7 @@ use gl_bindings::gl;
 use cgmath::{Matrix4, SquareMatrix, vec3, Point3, Rad};
 use crate::demo;
 use crate::utils::lazy_option::Lazy;
-use crate::render::{Framebuffer, FramebufferAttachment, AttachmentPoint, ImageFormat, RenderSubsystem};
+use crate::render::{Framebuffer, FramebufferAttachment, AttachmentPoint, ImageFormat, RenderSubsystem, Texture};
 use crate::render::separable_sss::SeparableSSSSubsystem;
 use crate::render::shader::managed::ManagedProgram;
 use crate::asset::AssetPathBuf;
@@ -26,6 +26,8 @@ pub struct RenderGlobal {
 	frametime_query_object_gl: gl::uint,
 	
 	queued_shader_reload: bool,
+	
+	num_sdaa_samples: u32,
 }
 
 impl RenderGlobal {
@@ -44,6 +46,8 @@ impl RenderGlobal {
 			frametime_query_object_gl: 0,
 			
 			queued_shader_reload: false,
+			
+			num_sdaa_samples: 8,
 		}
 	}
 	
@@ -82,8 +86,9 @@ impl RenderGlobal {
 				let mut fbo = Framebuffer::new(event.resolution.0, event.resolution.1);
 				
 				fbo.add_attachment(FramebufferAttachment::from_new_texture(AttachmentPoint::Depth, ImageFormat::get(gl::DEPTH_COMPONENT32F)));
+//				fbo.add_attachment(FramebufferAttachment::from_texture(AttachmentPoint::Depth, Rc::new(RefCell::new(Texture::new_ms(0, 0, self.num_sdaa_samples, ImageFormat::get(gl::DEPTH_COMPONENT32F)))), 0)); // Multisampled depth attachment for SDAA
 				fbo.add_attachment(FramebufferAttachment::from_new_texture(AttachmentPoint::Color(0), ImageFormat::get(gl::R11F_G11F_B10F)));
-				fbo.add_attachment(FramebufferAttachment::from_new_texture(AttachmentPoint::Color(1), ImageFormat::get(gl::RGB8)));
+				fbo.add_attachment(FramebufferAttachment::from_new_texture(AttachmentPoint::Color(1), ImageFormat::get(gl::RGBA8UI)));
 				fbo.add_attachment(FramebufferAttachment::from_new_texture(AttachmentPoint::Color(2), ImageFormat::get(gl::RGB8)));
 //				fbo.add_attachment(FramebufferAttachment::from_new_texture(AttachmentPoint::Color(1), ImageFormat::get(gl::RGBA8)));
 //				fbo.add_attachment(FramebufferAttachment::from_new_texture(AttachmentPoint::Color(1), ImageFormat::get(gl::RG16_SNORM)));
@@ -91,6 +96,105 @@ impl RenderGlobal {
 				fbo.allocate();
 				fbo
 			})));
+		}
+		
+		// DEBUG: Get main fbo completeness and stats
+		unsafe {
+			let main_fbo = self.framebuffer_scene_hdr_ehaa.need().borrow();
+			let status = gl::CheckNamedFramebufferStatus(main_fbo.handle_gl(), gl::FRAMEBUFFER);
+			if status != gl::FRAMEBUFFER_COMPLETE {
+				panic!("Main framebuffer incomplete: {:?}", status);
+			}
+			else {
+				println!("Main framebuffer complete: {:?}", status)
+			}
+		}
+		
+		// DEBUG: Setup framebuffer sample locations
+		unsafe {
+			let main_fbo = self.framebuffer_scene_hdr_ehaa.need().borrow();
+			
+//			gl::NamedFramebufferParameteri(main_fbo.handle_gl(), gl::FRAMEBUFFER_PROGRAMMABLE_SAMPLE_LOCATIONS_ARB, 16);
+			gl::NamedFramebufferParameteri(main_fbo.handle_gl(), gl::FRAMEBUFFER_PROGRAMMABLE_SAMPLE_LOCATIONS_ARB, 0);
+			gl::NamedFramebufferParameteri(main_fbo.handle_gl(), gl::FRAMEBUFFER_SAMPLE_LOCATION_PIXEL_GRID_ARB, 0);
+			
+			let mut sample_locations = [0.5f32; 32];
+			
+//			{// 5 samples
+//				sample_locations[0] = 0.5;
+//				sample_locations[1] = 0.5;
+//				
+//				// Down
+//				sample_locations[2] = 0.5+0.125;
+//				sample_locations[3] = 0.0+0.125;
+//				
+//				// Up
+//				sample_locations[4] = 0.5-0.125;
+//				sample_locations[5] = 1.0-0.125;
+//				
+//				// Left
+//				sample_locations[6] = 0.0+0.125;
+//				sample_locations[7] = 0.5+0.125;
+//				
+//				// Right
+//				sample_locations[8] = 1.0-0.125;
+//				sample_locations[9] = 0.5-0.125;
+//			}
+			
+			{
+				// NOTE: Color sample to coverage sample association
+				// is implementation dependent so we really are just
+				// hoping for the best when defining the first two
+				// samples as our color samples.
+				
+				// Southwest (down left) (color sample 2)
+//				sample_locations[0] = 0.5-0.25;
+//				sample_locations[1] = 0.5-0.125;
+				sample_locations[0] = 0.5;
+				sample_locations[1] = 0.5;
+				
+				// Northeast (up right) (color sample 1)
+				sample_locations[2] = 0.5+0.25;
+				sample_locations[3] = 0.5+0.125;
+				
+				// Northwest (up left)
+				sample_locations[4] = 0.5-0.125;
+				sample_locations[5] = 0.5+0.25;
+				
+				// Southeast (down right)
+				sample_locations[6] = 0.5+0.125;
+				sample_locations[7] = 0.5-0.25;
+				
+				// South (down)
+				sample_locations[8] = 0.5+0.125;
+				sample_locations[9] = 0.0+0.125;
+				
+				// North (up)
+				sample_locations[10] = 0.5-0.125;
+				sample_locations[11] = 1.0-0.125;
+				
+				// West (left)
+				sample_locations[12] = 0.0+0.125;
+				sample_locations[13] = 0.5+0.125;
+				
+				// East (right)
+				sample_locations[14] = 1.0-0.125;
+				sample_locations[15] = 0.5-0.125;
+			}
+			
+			gl::NamedFramebufferSampleLocationsfvARB(main_fbo.handle_gl(), 0, 16, &sample_locations as *const gl::float);
+		}
+		
+		// DEBUG: Get mixed_samples support
+		unsafe {
+			let mut max_raster_samples: gl::int = 0;
+			gl::GetIntegerv(gl::MAX_RASTER_SAMPLES_EXT, &mut max_raster_samples);
+			
+			let mut sample_locations_table_size: gl::int = 0;
+			gl::GetIntegerv(gl::PROGRAMMABLE_SAMPLE_LOCATION_TABLE_SIZE_ARB, &mut sample_locations_table_size);
+			
+			println!("MAX_RASTER_SAMPLES_EXT = {}", max_raster_samples);
+			println!("PROGRAMMABLE_SAMPLE_LOCATION_TABLE_SIZE_ARB = {}", sample_locations_table_size);
 		}
 		
 		// Reconfigure subsystems
@@ -110,6 +214,16 @@ impl RenderGlobal {
 		
 		// Load shaders
 		self.reload_shaders();
+		
+		// DEBUG: Check support for framebuffer_mixed_samples
+		unsafe {
+			let mut mixed_depth_samples_supported: gl::boolean = gl::FALSE;
+			gl::GetBooleanv(gl::MIXED_DEPTH_SAMPLES_SUPPORTED_NV, &mut mixed_depth_samples_supported);
+			
+			if mixed_depth_samples_supported != gl::TRUE {
+				panic!("GetBoolean reported MIXED_DEPTH_SAMPLES_SUPPORTED_NV as false");
+			}
+		}
 		
 		Ok(())
 	}
@@ -285,6 +399,10 @@ impl RenderGlobal {
 //			gl::EnableVertexAttribArray(1);
 //			gl::EnableVertexAttribArray(2);
 			
+			// DEBUG: Enable mixed_samples
+//			gl::Enable(gl::RASTER_MULTISAMPLE_EXT);
+//			gl::RasterSamplesEXT(self.num_sdaa_samples as gl::uint, gl::FALSE);
+			
 			/*
 			{// Draw teapot
 				let test_teapot_vbo = demo::demo_instance().test_teapot_vbo.need();
@@ -360,6 +478,9 @@ impl RenderGlobal {
 			}
 			*/
 			
+			// DEBUG: Disable mixed_samples
+			gl::Disable(gl::RASTER_MULTISAMPLE_EXT);
+			
 			{// Resolve separable sss
 				let main_fbo = RefCell::borrow(self.framebuffer_scene_hdr_ehaa.need());
 				let scene_hdr_rt = RefCell::borrow(&main_fbo.get_attachment(AttachmentPoint::Color(0)).unwrap().texture);
@@ -369,7 +490,7 @@ impl RenderGlobal {
 				self.separable_sss_system.do_resolve_sss(&scene_hdr_rt, &scene_depth_rt, camera_fovy, (camera_near_z, camera_far_z));
 			}
 			
-			{// Do ehaa resolve pass
+			{// Do post composite pass
 				let post_resolve_shader = self.program_post_composite.program().unwrap();
 				
 // 				// DEBUG: Blit framebuffer
@@ -386,6 +507,8 @@ impl RenderGlobal {
  				gl::BindTextureUnit(0, RefCell::borrow(&self.separable_sss_system.fbo_resolve_final.get_attachment(AttachmentPoint::Color(0)).unwrap().texture).texture_gl());
 				gl::BindTextureUnit(1, RefCell::borrow(&main_fbo.get_attachment(AttachmentPoint::Color(1)).unwrap().texture).texture_gl());
 				gl::BindTextureUnit(2, RefCell::borrow(&main_fbo.get_attachment(AttachmentPoint::Color(2)).unwrap().texture).texture_gl());
+				
+				gl::BindTextureUnit(4, RefCell::borrow(&main_fbo.get_attachment(AttachmentPoint::Depth).unwrap().texture).texture_gl());
 				
 				// Bind back buffer
 				gl::BindFramebuffer(gl::FRAMEBUFFER, 0);

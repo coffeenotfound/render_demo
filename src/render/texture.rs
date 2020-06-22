@@ -4,11 +4,13 @@ use std::path::Path;
 use std::error;
 use std::fs::OpenOptions;
 use ktx::KtxInfo;
+//use std::num::{NonZeroU32};
 
 pub struct Texture {
 	width: u32,
 	height: u32,
 	levels: u32,
+	samples: Option<u32>,
 	image_format: ImageFormat,
 	
 	handle_gl: gl::uint,
@@ -28,14 +30,26 @@ impl Texture {
 		if self.handle_gl == 0 {
 			// Allocate texture
 			self.handle_gl = unsafe {
-				let mut tex: gl::uint = 0;
-				gl::CreateTextures(gl::TEXTURE_2D, 1, &mut tex);
-				gl::TextureParameteri(tex, gl::TEXTURE_MIN_FILTER, gl::LINEAR as gl::int);
-				gl::TextureParameteri(tex, gl::TEXTURE_MAG_FILTER, gl::LINEAR as gl::int);
-				gl::TextureParameteri(tex, gl::TEXTURE_WRAP_S, gl::CLAMP_TO_EDGE as gl::int);
-				gl::TextureParameteri(tex, gl::TEXTURE_WRAP_T, gl::CLAMP_TO_EDGE as gl::int);
+				let tex_target = match self.samples {
+					Some(_) => gl::TEXTURE_2D_MULTISAMPLE,
+					None => gl::TEXTURE_2D,
+				};
 				
-				gl::TextureStorage2D(tex, self.levels as gl::sizei, self.image_format.as_gl_enum(), self.width as gl::sizei, self.height as gl::sizei);
+				let mut tex: gl::uint = 0;
+				gl::CreateTextures(tex_target, 1, &mut tex);
+				
+				if let Some(samples) = self.samples {
+					gl::TextureStorage2DMultisample(tex, samples as gl::sizei, self.image_format.as_gl_enum(), self.width as gl::sizei, self.height as gl::sizei, gl::TRUE);
+				}
+				else {
+					// Set sampler state (only for non-ms textures as ms textures don't have this)
+					gl::TextureParameteri(tex, gl::TEXTURE_WRAP_S, gl::CLAMP_TO_EDGE as gl::int);
+					gl::TextureParameteri(tex, gl::TEXTURE_WRAP_T, gl::CLAMP_TO_EDGE as gl::int);
+					gl::TextureParameteri(tex, gl::TEXTURE_MIN_FILTER, gl::LINEAR as gl::int);
+					gl::TextureParameteri(tex, gl::TEXTURE_MAG_FILTER, gl::LINEAR as gl::int);
+					
+					gl::TextureStorage2D(tex, self.levels as gl::sizei, self.image_format.as_gl_enum(), self.width as gl::sizei, self.height as gl::sizei);
+				}
 				tex
 			};
 			true
@@ -44,6 +58,31 @@ impl Texture {
 			false
 		}
 	}
+	
+	/*
+	#[deprecated]
+	pub fn allocate_ms(&mut self, num_samples: u32) -> bool {
+		if self.handle_gl == 0 {
+			// Allocate texture
+			self.handle_gl = unsafe {
+				let mut tex: gl::uint = 0;
+				gl::CreateTextures(gl::TEXTURE_2D_MULTISAMPLE, 1, &mut tex);
+				gl::TextureParameteri(tex, gl::TEXTURE_MIN_FILTER, gl::LINEAR as gl::int);
+				gl::TextureParameteri(tex, gl::TEXTURE_MAG_FILTER, gl::LINEAR as gl::int);
+				gl::TextureParameteri(tex, gl::TEXTURE_WRAP_S, gl::CLAMP_TO_EDGE as gl::int);
+				gl::TextureParameteri(tex, gl::TEXTURE_WRAP_T, gl::CLAMP_TO_EDGE as gl::int);
+				
+//				gl::TextureStorage2D(tex, self.levels as gl::sizei, self.image_format.as_gl_enum(), self.width as gl::sizei, self.height as gl::sizei);
+				gl::TextureStorage2DMultisample(tex, num_samples as gl::sizei, self.image_format.as_gl_enum(), self.width as gl::sizei, self.height as gl::sizei, true);
+				tex
+			};
+			true
+		}
+		else {
+			false
+		}
+	}
+	*/
 	
 	pub fn is_allocated(&self) -> bool {
 		self.handle_gl != 0
@@ -58,6 +97,19 @@ impl Texture {
 			width,
 			height,
 			levels,
+			samples: None,
+			image_format,
+			
+			handle_gl: 0,
+		}
+	}
+	
+	pub fn new_ms(width: u32, height: u32, samples: u32, image_format: ImageFormat) -> Texture {
+		Texture {
+			width,
+			height,
+			levels: 1,
+			samples: Some(samples),
 			image_format,
 			
 			handle_gl: 0,
@@ -85,13 +137,13 @@ impl Texture {
 			gl::CompressedTextureSubImage2D(texture.handle_gl, 0, 0, 0, img_width as gl::sizei, img_height as gl::sizei, image_format.as_gl_enum(), base_level_data.len() as gl::sizei, base_level_data.as_ptr() as *const gl::void);
 		}
 		
-//		// Generate mipmaps
-//		unsafe {
-//			gl::TextureParameteri(texture.texture_gl(), gl::TEXTURE_MIN_FILTER, gl::LINEAR_MIPMAP_LINEAR as gl::int);
-//			gl::TextureParameteri(texture.texture_gl(), gl::TEXTURE_MAG_FILTER, gl::LINEAR as gl::int);
-//			
-//			gl::GenerateTextureMipmap(texture.texture_gl());
-//		}
+		// Generate mipmaps
+		unsafe {
+			gl::TextureParameteri(texture.texture_gl(), gl::TEXTURE_MIN_FILTER, gl::LINEAR_MIPMAP_LINEAR as gl::int);
+			gl::TextureParameteri(texture.texture_gl(), gl::TEXTURE_MAG_FILTER, gl::LINEAR as gl::int);
+			
+			gl::GenerateTextureMipmap(texture.texture_gl());
+		}
 		
 		Ok(texture)
 	}
