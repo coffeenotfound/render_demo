@@ -7,10 +7,11 @@ use gl_bindings::gl;
 use cgmath::{Matrix4, SquareMatrix, vec3, Point3, Rad};
 use crate::demo;
 use crate::utils::lazy_option::Lazy;
-use crate::render::{Framebuffer, FramebufferAttachment, AttachmentPoint, ImageFormat, RenderSubsystem};
+use crate::render::{RenderSubsystem};
 use crate::render::separable_sss::SeparableSSSSubsystem;
-use crate::render::shader::managed::ManagedProgram;
+use crate::render::platform::shader::managed::ManagedProgram;
 use crate::asset::AssetPathBuf;
+use crate::render::platform::{Framebuffer, FramebufferAttachment, AttachmentPoint, ImageFormat};
 
 pub struct RenderGlobal {
 	current_configuration: Rc<RefCell<GraphicsConfiguration>>,

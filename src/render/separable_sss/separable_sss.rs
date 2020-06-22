@@ -1,10 +1,11 @@
-use gl_bindings::gl;
 use std::cell::RefCell;
-use cgmath::{Rad};
-use crate::render::{RenderSubsystem, ReconfigureEvent, Framebuffer, Texture, AttachmentPoint, FramebufferAttachment, ImageFormat};
-use crate::render::shader::{UniformLocationCache};
-use crate::render::shader::managed::{ManagedProgram};
+use cgmath::Rad;
+use gl_bindings::gl;
 use crate::asset::AssetPathBuf;
+use crate::render::{ReconfigureEvent, RenderSubsystem};
+use crate::render::platform::{AttachmentPoint, Framebuffer, FramebufferAttachment, ImageFormat, Texture};
+use crate::render::platform::shader::managed::ManagedProgram;
+use crate::render::platform::shader::UniformLocationCache;
 
 pub struct SeparableSSSSubsystem {
 	pub fbo_resolve_intermediate: Framebuffer,

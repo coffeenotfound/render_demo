@@ -2,9 +2,9 @@ use std::error;
 use std::fs::{OpenOptions};
 use std::io::{self, Read};
 use crate::asset::{AssetPathBuf, AssetPath, ASSET_MANAGER_INSTANCE};
-use crate::render::shader::{ShaderProgram, Shader, ShaderCode, ProgramLinkOptions, ShaderStage, ShaderCompileOptions, ShaderCompileStatus, ProgramLinkStatus};
-use crate::render::shader::managed::ProgramAssetSchema;
 use crate::structured_shader_language::{SSLSourceParser, ParsedSource, SSLTranspiler};
+use crate::render::platform::shader::{ShaderProgram, ShaderStage, ShaderCompileStatus, ProgramLinkStatus, ProgramLinkOptions, ShaderCompileOptions, Shader, ShaderCode};
+use crate::render::platform::shader::managed::ProgramAssetSchema;
 
 pub struct ManagedProgram {
 	program_asset_path: Option<AssetPathBuf>,

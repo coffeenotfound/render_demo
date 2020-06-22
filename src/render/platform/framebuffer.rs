@@ -1,8 +1,8 @@
 use gl_bindings::gl;
-use crate::render::{ImageFormat, Texture};
 use crate::utils::bool_cmpxchg::BoolCompareExchange;
 use std::rc::Rc;
 use std::cell::RefCell;
+use crate::render::platform::{Texture, ImageFormat};
 
 pub struct Framebuffer {
 	width: u32,

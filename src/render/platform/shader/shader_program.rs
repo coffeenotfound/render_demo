@@ -1,6 +1,6 @@
-use gl_bindings::gl;
-use crate::render::shader::{Shader, ShaderStage};
 use std::mem;
+use gl_bindings::gl;
+use crate::render::platform::shader::{Shader, ShaderStage};
 
 pub struct ShaderProgram {
 	vertex_shader: Option<Shader>,

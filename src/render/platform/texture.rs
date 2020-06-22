@@ -1,9 +1,9 @@
-use gl_bindings::gl;
-use crate::render::ImageFormat;
-use std::path::Path;
 use std::error;
 use std::fs::OpenOptions;
+use std::path::Path;
+use gl_bindings::gl;
 use ktx::KtxInfo;
+use crate::render::platform::ImageFormat;
 
 pub struct Texture {
 	width: u32,

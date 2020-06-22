@@ -1,7 +1,7 @@
 
 #[allow(non_snake_case)]
 pub mod ProgramAssetSchema {
-	use crate::render::shader::ShaderStage;
+	use crate::render::platform::shader::ShaderStage;
 	use serde::{Deserialize};
 	
 	#[derive(Deserialize)]

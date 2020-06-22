@@ -1,4 +1,5 @@
-use crate::render::{RenderSubsystem, ReconfigureEvent, Framebuffer};
+use crate::render::{ReconfigureEvent, RenderSubsystem};
+use crate::render::platform::Framebuffer;
 
 pub struct BloomSubsystem {
 	pub max_octaves: u32,
