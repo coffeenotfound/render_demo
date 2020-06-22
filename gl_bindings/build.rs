@@ -14,6 +14,9 @@ fn main() {
 		"GL_ARB_clip_control",
 		"GL_EXT_texture_compression_s3tc",
 		"GL_ARB_texture_compression_bptc",
+		
+		"GL_ARB_sample_locations",
+		"GL_NV_framebuffer_mixed_samples",
 	];
 	Registry::new(Api::Gl, (4, 5), Profile::Compatibility, Fallbacks::All, exts)
 		.write_bindings(GlobalGenerator, &mut gl_file)
