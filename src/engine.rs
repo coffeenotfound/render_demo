@@ -2,45 +2,65 @@ use std::cell::RefCell;
 use std::error;
 use std::ffi::CStr;
 use std::fs::OpenOptions;
+use std::marker::PhantomData;
 use std::panic;
 use std::path::PathBuf;
 use std::rc::Rc;
 use std::sync::{self, Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
+
 use byte_slice_cast::*;
 use byteorder::{ByteOrder, LittleEndian};
 use cgmath::{Deg, InnerSpace, Quaternion, Rad, Rotation, vec2, vec3, Vector2, Vector3};
 use gl_bindings::gl;
 use glfw::{SwapInterval, WindowEvent};
+
 use crate::asset::{ASSET_MANAGER_INSTANCE, AssetPath};
 use crate::camera::{Camera, OrbitAngles, PerspectiveProjection};
 use crate::camera::utils::fovx_to_fovy;
 use crate::model::ply::{PlyMeshLoader, PlyReadError, PullEvent};
-use crate::render::RenderGlobal;
 use crate::render::platform::{ImageFormat, TestVertexBuffer, Texture};
+use crate::render::RenderGlobal;
 use crate::render::separable_sss::{DEFAULT_HUMAN_SKIN_FALLOFF_FACTORS, DEFAULT_HUMAN_SKIN_STRENGTH_FACTORS, SubsurfaceKernelGenerator};
 use crate::utils::lazy_option::Lazy;
 use crate::utils::option_overwrite::OptionOverwrite;
+use crate::utils::unsafe_lazy::UnsafeLazy;
 use crate::windowing::{GlfwContext, Window};
 
-pub static mut DEMO_INSTANCE: Option<Engine> = None;
+/// The engine instance.
+static INSTANCE: UnsafeLazy<Arc<Engine>> = UnsafeLazy::empty();
 
-pub fn start() {
-	// Init the demo object
-	let demo = Engine::init().expect("Failed to init demo");
-	unsafe {
-		DEMO_INSTANCE = Some(demo);
-	}
+/// Get a reference to the engine instance.
+/// 
+/// SAFETY: This function must not be called before the
+/// engine instance value has been initialized. Because that
+/// happens very early on startup, normal game/engine code doesn't
+/// have to care about this since by then it's super definitely
+/// initialized.
+pub fn engine() -> &'static Arc<Engine> {
+	// In debug check for sanity
+	debug_assert!(INSTANCE.get_safe().is_some());
 	
-	// Run the demo
-	demo_instance().run();
+	// SAFETY: This is super unsafe but this function should
+	// only be called after the value has been initialized
+	unsafe {INSTANCE.get()}
 }
 
-pub fn demo_instance() -> &'static mut Engine {
-	unsafe {&mut DEMO_INSTANCE}.as_mut().expect("Demo instance not initialized yet (how the in the hel-")
+/// The main start function that starts the engine.
+/// Calling this function passes control flow to the
+/// engine without returning.
+pub fn start() -> ! {
+	// Init the engine instance
+	let engine = Engine::init().expect("Failed to init demo");
+	INSTANCE.set(engine);
+	
+	// Give control flow to the engine and start
+	let mut engine_logic = engine.logic.lock().run(&engine);
 }
 
 pub struct Engine {
+	pub(in self) logic: parking_lot::Mutex<EngineLogic>,
+	
 	#[deprecated]
 	pub asset_folder: PathBuf,
 	
@@ -60,7 +80,7 @@ pub struct Engine {
 }
 
 impl Engine {
-	pub fn init() -> Result<Engine, Box<dyn error::Error>> {
+	pub(in self) fn init() -> Result<Arc<Engine>, Box<dyn error::Error>> {
 		let asset_folder;
 		{// Resolve asset folder
 			let current_dir = PathBuf::from(std::env::current_dir().unwrap().as_os_str().to_os_string().into_string().unwrap().replace("\\", "/"));
@@ -77,7 +97,11 @@ impl Engine {
 		let glfw_context = GlfwContext::init()?;
 		
 		// Make instance and return
-		Ok(Self {
+		Ok(Arc::new(Self {
+			logic: parking_lot::Mutex::new(EngineLogic {
+				phantom: PhantomData,
+			}),
+			
 			asset_folder,
 			
 			glfw_context: Rc::new(RefCell::new(glfw_context)),
@@ -93,10 +117,23 @@ impl Engine {
 			test_active_camera: None,
 			test_camera_orbit: {let mut a = OrbitAngles::new_zero(vec3(0.0, 1.0, 0.0), vec3(0.0, 0.0, -1.0)); a.distance = 6.0; a.center = vec3(0.0, 1.75, 0.0); a},
 			test_camera_carousel_state: DemoCameraCarouselState::new(),
-		})
+		}))
 	}
 	
-	pub fn run(&mut self) {
+	pub fn get_test_camera(&mut self) -> sync::Weak<Mutex<Camera>> {
+		match &self.test_active_camera {
+			Some(cam) => Arc::downgrade(cam),
+			None => sync::Weak::new(),
+		}
+	}
+}
+
+pub struct EngineLogic {
+	pub(in self) phantom: PhantomData<()>,
+}
+
+impl EngineLogic {
+	pub fn run(&mut self, engine: &Arc<Engine>) -> ! {
 		//let resolution = (1280, 720);
 		let resolution = (1600, 900);
 		
@@ -378,7 +415,7 @@ impl Engine {
 //		self.window.take().unwrap().close();
 	}
 	
-	pub fn do_tick_frame(&mut self) {
+	fn do_tick_frame(&mut self) {
 		{// Tick demo camera carousel
 			let carousel = &mut self.test_camera_carousel_state;
 			
@@ -446,13 +483,6 @@ impl Engine {
 			let rotation = Quaternion::<f32>::from(orbit.angles);
 			cam.rotation = rotation.clone().invert();
 			cam.translation = orbit.center + (&rotation * vec3::<f32>(0.0, 0.0, -1.0) * -orbit.distance);
-		}
-	}
-	
-	pub fn get_test_camera(&mut self) -> sync::Weak<Mutex<Camera>> {
-		match &self.test_active_camera {
-			Some(cam) => Arc::downgrade(cam),
-			None => sync::Weak::new(),
 		}
 	}
 }
