@@ -19,18 +19,18 @@ impl<T> UnsafeLazy<T> {
 	pub fn new(data: T) -> Self {
 		Self {
 			init_flag: Mutex::new(true),
-			data: UnsafeCell::new(MaybeUninit::new(T)),
+			data: UnsafeCell::new(MaybeUninit::new(data)),
 		}
 	}
 	
 	pub unsafe fn get(&self) -> &T {
-		&*self.data.get()
+		&*(&*self.data.get()).as_ptr()
 	}
 	
 	pub fn get_safe(&self) -> Option<&T> {
 		// SAFETY: Unwrap won't panic because the Mutex is
 		// only used by us and can't get poisoned
-		let guard = self.init_flag.lock().unwrap();
+		let guard = self.init_flag.lock()/*.unwrap()*/;
 		
 		match *guard {
 			// SAFETY: Always safe since at this point we own
@@ -45,12 +45,12 @@ impl<T> UnsafeLazy<T> {
 	pub fn set(&self, data: T) -> bool {
 		// SAFETY: Unwrap won't panic because the Mutex is
 		// only used by us and can't get poisoned
-		let mut guard = self.init_flag.lock().unwrap();
+		let mut guard = self.init_flag.lock()/*.unwrap()*/;
 		
 		let update = !mem::replace(guard.deref_mut(), true);
 		if update {
 			unsafe {
-				*self.data.get() = data;
+				*(&mut *self.data.get()).as_mut_ptr() = data;
 			}
 		}
 		
@@ -62,7 +62,7 @@ impl<T> UnsafeLazy<T> {
 impl<T> Drop for UnsafeLazy<T> {
 	fn drop(&mut self) {
 		// Check if value is initialized
-		if self.init_flag.get_mut() {
+		if *self.init_flag.get_mut() {
 			// Get the data by swapping it out
 			// SAFETY: Accessing the UnsafeCell is safe because
 			// we own it and made sure the value is initialized
