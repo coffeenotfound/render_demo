@@ -25,16 +25,16 @@ mod ehaa_test_stuff {
 	use num::Integer;
 	
 	pub fn calc_edge_coverage_mask_lut() {
-		const num_angle_slices: usize = 32;
-		const num_dist_slices: usize = 32;
-		const dist_range: f64 = 0.55;
+		const NUM_ANGLE_SLICES: usize = 32;
+		const NUM_DIST_SLICES: usize = 32;
+		const DIST_RANGE: f64 = 0.55;
 		
-		let mut lut = [0u16; num_angle_slices * num_dist_slices];
+		let mut lut = [0u16; NUM_ANGLE_SLICES * NUM_DIST_SLICES];
 		
-		for angle_index in 0..num_angle_slices {
-			for distance_index in 0..num_dist_slices {
-				let a = (angle_index as f64 / num_angle_slices as f64) * 2.0 * std::f64::consts::PI;
-				let d = (distance_index as f64 / (num_dist_slices - 1) as f64) * dist_range;
+		for angle_index in 0..NUM_ANGLE_SLICES {
+			for distance_index in 0..NUM_DIST_SLICES {
+				let a = (angle_index as f64 / NUM_ANGLE_SLICES as f64) * 2.0 * std::f64::consts::PI;
+				let d = (distance_index as f64 / (NUM_DIST_SLICES - 1) as f64) * DIST_RANGE;
 				
 				let normal: Vector2<f64> = Vector2::new(f64::sin(a), -f64::cos(a));
 				let scaled_normal = normal * d;
@@ -59,14 +59,14 @@ mod ehaa_test_stuff {
 					}
 				}
 				
-				let lut_index = angle_index * num_dist_slices + distance_index;
+				let lut_index = angle_index * NUM_DIST_SLICES + distance_index;
 				lut[lut_index] = coverage_mask;
 			}
 		}
 		
 		// Print
-		println!("const uint16_t EDGE_TO_COVERGE_MARK_LUT[{}*{}] = {{", num_dist_slices, num_angle_slices);
-		for row in lut.chunks_exact(num_dist_slices) {
+		println!("const uint16_t EDGE_TO_COVERGE_MARK_LUT[{}*{}] = {{", NUM_DIST_SLICES, NUM_ANGLE_SLICES);
+		for row in lut.chunks_exact(NUM_DIST_SLICES) {
 			print!("\t");
 			for v in row {
 				print!("{:#06X}us, ", v);
