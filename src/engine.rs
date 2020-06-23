@@ -23,11 +23,11 @@ use crate::utils::lazy_option::Lazy;
 use crate::utils::option_overwrite::OptionOverwrite;
 use crate::windowing::{GlfwContext, Window};
 
-pub static mut DEMO_INSTANCE: Option<Demo> = None;
+pub static mut DEMO_INSTANCE: Option<Engine> = None;
 
 pub fn start() {
 	// Init the demo object
-	let demo = Demo::init().expect("Failed to init demo");
+	let demo = Engine::init().expect("Failed to init demo");
 	unsafe {
 		DEMO_INSTANCE = Some(demo);
 	}
@@ -36,11 +36,11 @@ pub fn start() {
 	demo_instance().run();
 }
 
-pub fn demo_instance() -> &'static mut Demo {
+pub fn demo_instance() -> &'static mut Engine {
 	unsafe {&mut DEMO_INSTANCE}.as_mut().expect("Demo instance not initialized yet (how the in the hel-")
 }
 
-pub struct Demo {
+pub struct Engine {
 	#[deprecated]
 	pub asset_folder: PathBuf,
 	
@@ -59,8 +59,8 @@ pub struct Demo {
 	pub test_camera_carousel_state: DemoCameraCarouselState,
 }
 
-impl Demo {
-	pub fn init() -> Result<Demo, Box<dyn error::Error>> {
+impl Engine {
+	pub fn init() -> Result<Engine, Box<dyn error::Error>> {
 		let asset_folder;
 		{// Resolve asset folder
 			let current_dir = PathBuf::from(std::env::current_dir().unwrap().as_os_str().to_os_string().into_string().unwrap().replace("\\", "/"));

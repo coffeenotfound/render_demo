@@ -5,7 +5,7 @@ use std::ops::Deref;
 use std::sync::Mutex;
 use gl_bindings::gl;
 use cgmath::{Matrix4, SquareMatrix, vec3, Point3, Rad};
-use crate::demo;
+use crate::engine;
 use crate::utils::lazy_option::Lazy;
 use crate::render::{RenderSubsystem};
 use crate::render::separable_sss::SeparableSSSSubsystem;
@@ -172,7 +172,7 @@ impl RenderGlobal {
 		
 		// Update cam state
 		// LATER: Do this when rendering a scene: Get active camera from scene, make CameraState, calc proj matrix, pass state along in functions
-		let active_camera = demo::demo_instance().get_test_camera();
+		let active_camera = engine::demo_instance().get_test_camera();
 		let active_camera = if let Some(cam) = active_camera.upgrade() {
 			cam
 		} else {
@@ -299,7 +299,7 @@ impl RenderGlobal {
 			
 //			/*
 			{// Draw head model
-				let test_head_model = demo::demo_instance().test_head_model.need();
+				let test_head_model = engine::demo_instance().test_head_model.need();
 				
 				// Bind textures
 				gl::BindTextureUnit(1, test_head_model.tex_albedo.texture_gl());

@@ -2,7 +2,9 @@
 #![allow(deprecated)]
 #![allow(unused_parens)]
 
-pub mod demo;
+#![allow(dead_code)]
+
+pub mod engine;
 pub mod windowing;
 pub mod utils;
 pub mod render;
@@ -14,5 +16,5 @@ pub mod structured_shader_language;
 pub mod btex;
 
 fn main() {
-	demo::start();
+	engine::start();
 }
