@@ -59,6 +59,9 @@ impl<T> UnsafeLazy<T> {
 	}
 }
 
+unsafe impl<T> Send for UnsafeLazy<T> {}
+unsafe impl<T> Sync for UnsafeLazy<T> {}
+
 impl<T> Drop for UnsafeLazy<T> {
 	fn drop(&mut self) {
 		// Check if value is initialized
