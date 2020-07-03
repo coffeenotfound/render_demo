@@ -1,5 +1,5 @@
-use std::mem::{self, MaybeUninit};
 use std::cell::UnsafeCell;
+use std::mem::{self, MaybeUninit};
 use std::ops::DerefMut;
 use parking_lot::Mutex;
 
@@ -9,16 +9,16 @@ pub struct UnsafeLazy<T> {
 }
 
 impl<T> UnsafeLazy<T> {
-	pub fn empty() -> Self {
+	pub const fn empty() -> Self {
 		Self {
-			init_flag: Mutex::new(false),
-			data: UnsafeCell::new(MaybeUninit::zeroed()),
+			init_flag: parking_lot::const_mutex(false),
+			data: UnsafeCell::new(MaybeUninit::uninit()),
 		}
 	}
 	
-	pub fn new(data: T) -> Self {
+	pub const fn new(data: T) -> Self {
 		Self {
-			init_flag: Mutex::new(true),
+			init_flag: parking_lot::const_mutex(true),
 			data: UnsafeCell::new(MaybeUninit::new(data)),
 		}
 	}
