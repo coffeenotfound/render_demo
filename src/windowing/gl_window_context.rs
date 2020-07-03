@@ -1,18 +1,19 @@
-use crate::windowing::{Window};
-use std::rc::{Weak, Rc};
 use std::cell::RefCell;
+use std::rc::Rc;
+use std::sync::{self};
 use gl_bindings::gl;
 use crate::utils::lazy_option::Lazy;
+use crate::windowing::Window;
 
 pub struct GLWindowContext {
-	glfw_window: Weak<RefCell<Window>>,
+	glfw_window: sync::Weak<parking_lot::Mutex<Window>>,
 }
 
 impl GLWindowContext {
 	pub fn set_swap_interval(&mut self, interval: glfw::SwapInterval) -> bool {
 //		if self.is_current() {
 		if let Some(window) = self.glfw_window.upgrade() {
-			let window_borrow = window.borrow_mut();
+			let window_borrow = window.lock();
 			let mut glfw_context = window_borrow.glfw_context.borrow_mut();
 			let glfw = glfw_context.glfw_mut();
 			glfw.set_swap_interval(interval);
@@ -24,7 +25,7 @@ impl GLWindowContext {
 	
 	pub fn make_current(&mut self) -> bool {
 		if let Some(strong_ref) = self.glfw_window.upgrade() {
-			let mut window = RefCell::borrow_mut(&strong_ref);
+			let mut window = strong_ref.lock();
 			
 			// Borrow
 			let glfw_context = Rc::clone(&window.glfw_context);
@@ -49,7 +50,7 @@ impl GLWindowContext {
 //		
 //	}
 	
-	pub(super) fn from_window(window_ref: Weak<RefCell<Window>>) -> Self {
+	pub(super) fn from_window(window_ref: sync::Weak<parking_lot::Mutex<Window>>) -> Self {
 		Self {
 			glfw_window: window_ref,
 		}

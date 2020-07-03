@@ -6,7 +6,7 @@ use std::marker::PhantomData;
 use std::panic;
 use std::path::PathBuf;
 use std::rc::Rc;
-use std::sync::{self, Arc, Mutex};
+use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use byte_slice_cast::*;
@@ -52,10 +52,10 @@ pub fn engine() -> &'static Arc<Engine> {
 pub fn start() -> ! {
 	// Init the engine instance
 	let engine = Engine::init().expect("Failed to init demo");
-	INSTANCE.set(engine);
+	INSTANCE.set(Arc::clone(&engine));
 	
 	// Give control flow to the engine and start
-	let mut engine_logic = engine.logic.lock().run(&engine);
+	self::engine().logic.lock().run(self::engine())
 }
 
 pub struct Engine {
@@ -65,18 +65,13 @@ pub struct Engine {
 	pub asset_folder: PathBuf,
 	
 	pub glfw_context: Rc<RefCell<GlfwContext>>,
-	pub main_window: Option<Rc<RefCell<Window>>>,
+	pub main_window: parking_lot::Mutex<Option<Arc<parking_lot::Mutex<Window>>>>,
 //	pub window: Option<glfw::Window>,
 //	pub window_channel: Option<Receiver<(f64, WindowEvent)>>,
 	
-	pub render_global: RenderGlobal,
+	pub render_global: parking_lot::Mutex<RenderGlobal>,
 	
-	pub test_teapot_vbo: Option<TestVertexBuffer>,
-	pub test_head_model: Option<TestHeadModel>,
-	
-	pub test_active_camera: Option<Arc<Mutex<Camera>>>,
-	pub test_camera_orbit: OrbitAngles,
-	pub test_camera_carousel_state: DemoCameraCarouselState,
+	pub test_stuff: parking_lot::Mutex<TestStuff>,
 }
 
 impl Engine {
@@ -105,26 +100,29 @@ impl Engine {
 			asset_folder,
 			
 			glfw_context: Rc::new(RefCell::new(glfw_context)),
-			main_window: None,
+			main_window: parking_lot::Mutex::new(None),
 //			window: None,
 //			window_channel: None,
 			
-			render_global: RenderGlobal::new(),
+			render_global: parking_lot::Mutex::new(RenderGlobal::new()),
 			
-			test_teapot_vbo: None,
-			test_head_model: None,
-			
-			test_active_camera: None,
-			test_camera_orbit: {let mut a = OrbitAngles::new_zero(vec3(0.0, 1.0, 0.0), vec3(0.0, 0.0, -1.0)); a.distance = 6.0; a.center = vec3(0.0, 1.75, 0.0); a},
-			test_camera_carousel_state: DemoCameraCarouselState::new(),
+			test_stuff: parking_lot::Mutex::new(TestStuff {
+				test_teapot_vbo: None,
+				test_head_model: None,
+				
+				test_active_camera: None,
+				test_camera_orbit: {let mut a = OrbitAngles::new_zero(vec3(0.0, 1.0, 0.0), vec3(0.0, 0.0, -1.0)); a.distance = 6.0; a.center = vec3(0.0, 1.75, 0.0); a},
+				test_camera_carousel_state: DemoCameraCarouselState::new(),
+			}),
 		}))
 	}
 	
-	pub fn get_test_camera(&mut self) -> sync::Weak<Mutex<Camera>> {
-		match &self.test_active_camera {
-			Some(cam) => Arc::downgrade(cam),
-			None => sync::Weak::new(),
-		}
+	pub fn get_test_camera(&self) -> Option<Arc<Mutex<Camera>>> {
+		self.test_stuff.lock().test_active_camera.clone()
+//		match &self.test_stuff.lock().test_active_camera {
+//			Some(cam) => Arc::downgrade(cam),
+//			None => sync::Arc::new(),
+//		}
 	}
 }
 
@@ -138,9 +136,9 @@ impl EngineLogic {
 		let resolution = (1600, 900);
 		
 		{// Create the main window
-			let window = Window::new(Rc::clone(&self.glfw_context));
-			let window = self.main_window.overwrite(window);
-			let mut window = RefCell::borrow_mut(window);
+			let window_instance = Window::new(Rc::clone(&engine.glfw_context));
+			let mut window = engine.main_window.lock();
+			let mut window = window.overwrite(window_instance).lock();
 			
 			window.init();
 			window.set_title(String::from("Render Demo"));
@@ -222,6 +220,8 @@ impl EngineLogic {
 			}
 			println!("}};");
 		}
+		
+		let mut test_stuff = engine.test_stuff.lock();
 		
 		{// Load test model (lee head)
 			// Log
@@ -337,7 +337,7 @@ impl EngineLogic {
 //			let tex_normal = Texture::new(16, 16, 1, ImageFormat::get(gl::RGBA8));
 //			let tex_transmission = Texture::new(16, 16, 1, ImageFormat::get(gl::RGBA8));
 			
-			self.test_head_model = Some(TestHeadModel {
+			test_stuff.test_head_model = Some(TestHeadModel {
 				vertex_buffer_gl,
 				index_buffer_gl,
 				num_indices,
@@ -348,14 +348,14 @@ impl EngineLogic {
 		}
 		
 		// Create test teapot vbo
-		self.test_teapot_vbo = Some({
+		test_stuff.test_teapot_vbo = Some({
 			let mut buffer = TestVertexBuffer::new();
 			buffer.allocate(&crate::render::teapot::TEAPOT_VERTEX_DATA.as_byte_slice());
 			buffer
 		});
 		
 		// Create main camera
-		self.test_active_camera = Some(Arc::new(Mutex::new({
+		test_stuff.test_active_camera = Some(Arc::new(Mutex::new({
 			let fovy = fovx_to_fovy(Rad::from(Deg(65.0)), resolution.0 as f32 /resolution.1 as f32);
 			let projection = PerspectiveProjection::new(fovy, 1.0/256.0, 4096.0, true, true);
 			let mut cam = Camera::new(Box::new(projection));
@@ -363,24 +363,29 @@ impl EngineLogic {
 			cam
 		})));
 		
-		// Initialize render global
-		self.render_global.initialize(resolution).expect("Failed to init render global");
+		{// Initialize render global
+			engine.render_global.lock().initialize(resolution).expect("Failed to init render global");
+		}
+		
+		drop(test_stuff);
 		
 		// Main loop
 		'main_loop: loop {
 			{// Update window and poll messages
-				let mut window_borrow = self.main_window.need().borrow_mut();
+				let window_borrow = engine.main_window.lock();
+				let mut window_borrow = window_borrow.need().lock();
 				
 				// Poll window events
 				for (_, event) in window_borrow.poll_messages() {
 					match event {
 						WindowEvent::Scroll(_scroll_x, scroll_y) => {
-							self.test_camera_orbit.distance = f32::min(f32::max(self.test_camera_orbit.distance - ((scroll_y as f32 * 0.1) * self.test_camera_orbit.distance), 2.0), 16.0);
+							let mut test_stuff = engine.test_stuff.lock();
+							test_stuff.test_camera_orbit.distance = f32::min(f32::max(test_stuff.test_camera_orbit.distance - ((scroll_y as f32 * 0.1) * test_stuff.test_camera_orbit.distance), 2.0), 16.0);
 						}
 						WindowEvent::Key(key, _scancode, action, _) => {
 							if key == glfw::Key::R && action == glfw::Action::Press {
 								// Reload shaders
-								self.render_global.queue_shader_reload();
+								engine.render_global.lock().queue_shader_reload();
 							}
 						}
 						_ => {},
@@ -397,27 +402,35 @@ impl EngineLogic {
 			}
 			
 			// Tick frame
-			self.do_tick_frame();
+			self.do_tick_frame(engine);
 			
 			// Render frame
-			self.render_global.do_render_frame();
+			engine.render_global.lock().do_render_frame();
 			
 			{// Swap buffers
-				let mut window_borrow = self.main_window.need().borrow_mut();
+				let window_borrow = engine.main_window.lock();
+				let mut window_borrow = window_borrow.need().lock();
 				window_borrow.swap_buffers();
 				
-				// Ensure window RefMut is dropped
+				// Ensure window guard is dropped
 				drop(window_borrow);
 			}
 		}
 		
 //		// Close window
 //		self.window.take().unwrap().close();
+		
+		// Exit
+		std::process::exit(0)
 	}
 	
-	fn do_tick_frame(&mut self) {
+	fn do_tick_frame(&mut self, engine: &Arc<Engine>) {
 		{// Tick demo camera carousel
-			let carousel = &mut self.test_camera_carousel_state;
+			let mut test_stuff_guard = engine.test_stuff.lock();
+			let mut test_stuff = &mut *test_stuff_guard;
+			
+			let carousel = &mut test_stuff.test_camera_carousel_state;
+//			let orbit = test_stuff.test_camera_orbit;
 			
 			let current_time = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs_f64();
 			if carousel.last_tick_time == 0.0 {
@@ -427,9 +440,16 @@ impl EngineLogic {
 			// Get tick delta time, clamped from 0 to 1
 			let delta_time = f32::min(f32::max((current_time - carousel.last_tick_time) as f32, 0.0), 1.0);
 			
-			let mouse_pos = self.main_window.need().borrow().get_cursor_pos();
+			let mouse_pos;
+			let button_state;
+			{
+				let window_borrow = engine.main_window.lock();
+				let window_borrow = window_borrow.need().lock();
+				
+				mouse_pos = window_borrow.get_cursor_pos();
+				button_state = window_borrow.get_mouse_button(glfw::MouseButtonLeft);
+			}
 			
-			let button_state = self.main_window.need().borrow().get_mouse_button(glfw::MouseButtonLeft);
 			if button_state {
 				// Deaccelerate spin
 				carousel.current_spin_speed = f32::max(carousel.current_spin_speed - carousel.spin_deacceleration_per_sec * delta_time, 0.0);
@@ -441,10 +461,10 @@ impl EngineLogic {
 				let mouse_delta = (mouse_pos.0 - carousel.last_mouse_pos.0) as f32;
 				
 				// Apply drag spin
-				self.test_camera_orbit.angles.y += Deg(mouse_delta * carousel.drag_spin_sensitivity).into();
+				test_stuff.test_camera_orbit.angles.y += Deg(mouse_delta * carousel.drag_spin_sensitivity).into();
 				
 				// Vertical movement
-				self.test_camera_orbit.center.y += (mouse_pos.1 - carousel.last_mouse_pos.1) as f32 * 0.001;
+				test_stuff.test_camera_orbit.center.y += (mouse_pos.1 - carousel.last_mouse_pos.1) as f32 * 0.001;
 			}
 			else {
 				if carousel.current_spin_speed > 0.0 {
@@ -464,19 +484,22 @@ impl EngineLogic {
 			carousel.last_mouse_pos = mouse_pos;
 			
 			// Actually rotate camera orbit
-			self.test_camera_orbit.angles.y += Deg(carousel.current_spin_speed).into();
+			test_stuff.test_camera_orbit.angles.y += Deg(carousel.current_spin_speed).into();
 		}
 		
 		{// Update cam
-			let mut cam = self.test_active_camera.need().lock().unwrap();
+			let test_stuff_guard = engine.test_stuff.lock(); 
+			let test_stuff = &*test_stuff_guard;
+			let mut cam = test_stuff.test_active_camera.need().lock().unwrap();
 			
 			// Update camera viewport size
-			let window = self.main_window.need().borrow();
+			let window = engine.main_window.lock();
+			let window = window.need().lock();
 			let window_size = window.get_size();
 			cam.viewport_size = (window_size.0 as u32, window_size.1 as u32);
 			
 			// Update camera transform
-			let orbit = &self.test_camera_orbit;
+			let orbit = &test_stuff.test_camera_orbit;
 //			orbit.center = vec3(0.0, 0.5, 0.0);
 //			orbit.center = vec3(0.0, 1.75, 0.0);
 			
@@ -620,6 +643,15 @@ fn test_model_load(asset_folder: &Path) {
 	println!("-- End model dump --");
 }
 */
+
+pub struct TestStuff {
+	pub test_teapot_vbo: Option<TestVertexBuffer>,
+	pub test_head_model: Option<TestHeadModel>,
+	
+	pub test_active_camera: Option<Arc<Mutex<Camera>>>,
+	pub test_camera_orbit: OrbitAngles,
+	pub test_camera_carousel_state: DemoCameraCarouselState,
+}
 
 pub struct DemoCameraCarouselState {
 	pub spin_acceleration_per_sec: f32,

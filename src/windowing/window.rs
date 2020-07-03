@@ -1,15 +1,18 @@
-use glfw::{WindowMode, WindowHint, FlushedMessages, WindowEvent, Context, MouseButton};
 use std::cell::RefCell;
-use std::rc::{Rc, Weak};
-use crate::windowing::{GlfwContext, GLWindowContext};
+use std::rc::Rc;
+use std::sync::{self};
+use std::sync::Arc;
 use std::sync::mpsc::Receiver;
+use glfw::{Context, FlushedMessages, MouseButton, WindowEvent, WindowHint, WindowMode};
+use glfw::ffi::{glfwGetPrimaryMonitor, glfwGetVideoMode};
 use crate::utils::bool_cmpxchg::BoolCompareExchange;
 use crate::utils::lazy_option::Lazy;
-use glfw::ffi::{glfwGetPrimaryMonitor, glfwGetVideoMode};
+use crate::windowing::{GlfwContext, GLWindowContext};
 
+/// TODO: Make window thread safe with an interior mutex for mutations
 pub struct Window {
 	pub(in super) glfw_context: Rc<RefCell<GlfwContext>>,
-	self_reference: Weak<RefCell<Self>>,
+	self_reference: sync::Weak<parking_lot::Mutex<Self>>,
 	
 	visible: bool,
 	width: u32,
@@ -53,7 +56,8 @@ impl Window {
 			}
 			
 			// Create the gl context object
-			self.gl_context = Some(Rc::new(RefCell::new(GLWindowContext::from_window(Weak::clone(&self.self_reference)))));
+			let self_ref = sync::Weak::clone(&self.self_reference); // PANIC: Won't panic as our self reference will always exist aslong as self exists
+			self.gl_context = Some(Rc::new(RefCell::new(GLWindowContext::from_window(self_ref))));
 			
 			true
 		}
@@ -166,10 +170,12 @@ impl Window {
 		glfw::flush_messages(self.message_channel.need())
 	}
 	
-	pub fn new(glfw_context: Rc<RefCell<GlfwContext>>) -> Rc<RefCell<Self>> {
-		let shared_ref = Rc::new(RefCell::new(Self {
+	/// TODO: Move the window initialization into the window manager which then also keeps a list of all windows
+	#[deprecated]
+	pub fn new(glfw_context: Rc<RefCell<GlfwContext>>) -> Arc<parking_lot::Mutex<Self>> {
+		let shared_ref = Arc::new(parking_lot::Mutex::new(Self {
 			glfw_context,
-			self_reference: Weak::new(), // Empty for now, replaced soon
+			self_reference: sync::Weak::new(), // Empty for now, replaced soon
 			
 			visible: false,
 			width: 256,
@@ -186,9 +192,10 @@ impl Window {
 			gl_context: None,
 		}));
 		
-		// Store our (weak) self reference
-		let weak_ref = Rc::downgrade(&shared_ref);
-		shared_ref.borrow_mut().self_reference = weak_ref;
+		{// Store our (weak) self reference
+			let weak_ref = Arc::downgrade(&shared_ref);
+			shared_ref.lock().self_reference = weak_ref;
+		}
 		
 		// Finally, return as shared ref
 		shared_ref
