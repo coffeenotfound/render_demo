@@ -50,7 +50,7 @@ impl<T> UnsafeLazy<T> {
 		let update = !mem::replace(guard.deref_mut(), true);
 		if update {
 			unsafe {
-				*(&mut *self.data.get()).as_mut_ptr() = data;
+				(&mut *self.data.get()).as_mut_ptr().write(data);
 			}
 		}
 		
