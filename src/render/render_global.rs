@@ -1,17 +1,18 @@
-use std::error;
-use std::rc::Rc;
 use std::cell::RefCell;
+use std::error;
 use std::ops::Deref;
+use std::rc::Rc;
+use std::sync::atomic::{self, AtomicBool};
 use std::sync::Mutex;
+use cgmath::{Matrix4, Point3, Rad, SquareMatrix, vec3};
 use gl_bindings::gl;
-use cgmath::{Matrix4, SquareMatrix, vec3, Point3, Rad};
-use crate::engine;
-use crate::utils::lazy_option::Lazy;
-use crate::render::{RenderSubsystem};
-use crate::render::separable_sss::SeparableSSSSubsystem;
-use crate::render::platform::shader::managed::ManagedProgram;
 use crate::asset::AssetPathBuf;
-use crate::render::platform::{Framebuffer, FramebufferAttachment, AttachmentPoint, ImageFormat};
+use crate::engine;
+use crate::render::RenderSubsystem;
+use crate::render::platform::{AttachmentPoint, Framebuffer, FramebufferAttachment, ImageFormat};
+use crate::render::platform::shader::managed::ManagedProgram;
+use crate::render::separable_sss::SeparableSSSSubsystem;
+use crate::utils::lazy_option::Lazy;
 
 pub struct RenderGlobal {
 	current_configuration: Rc<RefCell<GraphicsConfiguration>>,
@@ -26,7 +27,7 @@ pub struct RenderGlobal {
 	
 	frametime_query_object_gl: gl::uint,
 	
-	queued_shader_reload: bool,
+	queued_shader_reload: AtomicBool,
 }
 
 impl RenderGlobal {
@@ -44,7 +45,7 @@ impl RenderGlobal {
 			
 			frametime_query_object_gl: 0,
 			
-			queued_shader_reload: false,
+			queued_shader_reload: AtomicBool::new(false),
 		}
 	}
 	
@@ -137,7 +138,6 @@ impl RenderGlobal {
 		
 		// Reload shader from assets
 		
-		
 //		// Load shaders
 //		self.program_ehaa_scene = Some({
 //			let mut s = ShaderProgram::new_from_file(
@@ -158,22 +158,22 @@ impl RenderGlobal {
 //			s.compile();
 //			Rc::new(RefCell::new(s))
 //		});
-
+		
 		// Reload subsystem shaders
 		self.separable_sss_system.reload_shaders();
 	}
 	
 	pub fn do_render_frame(&mut self) {
 		// Reload shaders if needed
-		if self.queued_shader_reload {
-			self.queued_shader_reload = false;
+		if self.queued_shader_reload.compare_and_swap(true, false, atomic::Ordering::SeqCst) {
+			self.queued_shader_reload.store(false, atomic::Ordering::SeqCst);
 			self.reload_shaders();
 		}
 		
 		// Update cam state
 		// LATER: Do this when rendering a scene: Get active camera from scene, make CameraState, calc proj matrix, pass state along in functions
-		let active_camera = engine::demo_instance().get_test_camera();
-		let active_camera = if let Some(cam) = active_camera.upgrade() {
+		let active_camera = engine::engine().get_test_camera();
+		let active_camera = if let Some(cam) = active_camera {
 			cam
 		} else {
 			// No active camera, so don't render anything for now
@@ -299,7 +299,8 @@ impl RenderGlobal {
 			
 //			/*
 			{// Draw head model
-				let test_head_model = engine::demo_instance().test_head_model.need();
+				let test_stuff = engine::engine().test_stuff.lock();
+				let test_head_model = test_stuff.test_head_model.need();
 				
 				// Bind textures
 				gl::BindTextureUnit(1, test_head_model.tex_albedo.texture_gl());
@@ -405,8 +406,9 @@ impl RenderGlobal {
 		}
 	}
 	
-	pub fn queue_shader_reload(&mut self) {
-		self.queued_shader_reload = true;
+	pub fn queue_shader_reload(&self) {
+		self.queued_shader_reload.store(true, atomic::Ordering::SeqCst);
+//		self.queued_shader_reload = true;
 	}
 }
 
