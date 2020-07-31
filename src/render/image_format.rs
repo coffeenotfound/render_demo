@@ -1,6 +1,6 @@
 use gl_bindings::gl;
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub struct ImageFormat {
 	format_gl: gl::enuma,
 }
