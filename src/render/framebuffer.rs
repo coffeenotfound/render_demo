@@ -109,7 +109,7 @@ impl Framebuffer {
 			unsafe {
 				// TODO: Actually set the draw buffers based on how many attachments we have
 				// Somehow the above doesn't work and generate an GL_INVALID_VALUE: Draw buffer is invalid error
-				let debug_draw_buffers = [gl::COLOR_ATTACHMENT0, gl::COLOR_ATTACHMENT1, gl::COLOR_ATTACHMENT2];
+				let debug_draw_buffers = [gl::COLOR_ATTACHMENT0, gl::COLOR_ATTACHMENT1, gl::COLOR_ATTACHMENT2, gl::COLOR_ATTACHMENT3, gl::COLOR_ATTACHMENT4, gl::COLOR_ATTACHMENT5];
 				gl::NamedFramebufferDrawBuffers(self.handle_gl, debug_draw_buffers.len() as gl::sizei, debug_draw_buffers.as_ptr());
 			}
 			
