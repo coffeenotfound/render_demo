@@ -5,10 +5,15 @@
 #extension GL_NV_gpu_shader5 : require
 
 layout(binding = 0) uniform sampler2D texSceneHDR;
+layout(binding = 0) uniform sampler2DMS texSceneHDRMS;
 layout(binding = 4) uniform sampler2DMS texSceneDepthMS; // DEBUG: Used for test SDAA impl
 
 layout(binding = 1) uniform usampler2D texEHAAEdgeHeuristic;
 layout(binding = 2) uniform sampler2D texEHAAEdgeHeuristic2;
+
+layout(binding = 5) uniform sampler2D texSceneHDR_NSAA2;
+layout(binding = 6) uniform sampler2D texSceneHDR_NSAA3;
+layout(binding = 7) uniform sampler2D texSceneHDR_NSAA4;
 
 in vec2 vScreenTexCoord;
 
@@ -87,26 +92,34 @@ void transformEdgeInfoOrigin(vec2 neighborOffset, inout uint angleIndex, inout u
 }
 
 void main() {
-	// Sample scene frag
-	vec3 sceneFragHDR = texture(texSceneHDR, vScreenTexCoord.st).rgb;
+	vec3 sceneFragHDR;
 	
-	// DEBUG:
 	ivec2 iscreenUV = ivec2(vScreenTexCoord.st * vec2(1600.0, 900.0));
 	
-	float depthVariance = 0.0;
-	float depthMean = 0.0;
-	const int NUM_SAMPLES = 5;
-	for(int i = 0; i < NUM_SAMPLES; i++) {
-		float depth = texelFetch(texSceneDepthMS, iscreenUV.st, i).r;
-		depthMean += depth / float(NUM_SAMPLES);
-	}
-	for(int i = 0; i < NUM_SAMPLES; i++) {
-		float elem = texelFetch(texSceneDepthMS, iscreenUV.st, i).r - depthMean;
-		depthVariance += (elem*elem) / float(NUM_SAMPLES);
-	}
+	#define AA_MODE_NONE 0
+	#define AA_MODE_MSAA 1
+	#define AA_MODE_SDAA 2
+	#define AA_MODE_NSAA 3
 	
-//	sceneFragHDR = vec3(depthMean * 64.0);
-//	sceneFragHDR = vec3(depthVariance * 10000.0);
+	#define ANTIALIASING_MODE AA_MODE_MSAA
+	
+	#if ANTIALIASING_MODE == AA_MODE_MSAA
+	// Sample scene frag samples
+	const int NUM_MSAA_SAMPLES = 4;
+	const bool TONEMAP_SAMPLES_SEPERATE = true;
+	
+	sceneFragHDR = vec3(0.0);
+	for(int i = NUM_MSAA_SAMPLES - 1; i >= 0; i--) {
+		vec3 sampleFrag = texelFetch(texSceneHDRMS, iscreenUV.st, i).rgb;
+		sceneFragHDR += (TONEMAP_SAMPLES_SEPERATE ? tonemapFrag(sampleFrag, 1.0) : sampleFrag);
+	}
+	sceneFragHDR *= 1.0 / float(NUM_MSAA_SAMPLES);
+	
+	if(!TONEMAP_SAMPLES_SEPERATE) sceneFragHDR = tonemapFrag(sceneFragHDR, 1.0);
+	#endif
+	
+	#if ANTIALIASING_MODE == AA_MODE_SDAA
+	const int NUM_SDAA_SAMPLES = 2;
 	
 	// DEBUG:
 	float centerDepth = texelFetch(texSceneDepthMS, iscreenUV.st, 0).r;
@@ -119,43 +132,65 @@ void main() {
 		ivec2(-1, 0),
 		ivec2(0, +1),
 		ivec2(0, -1),
-	};
+	}
 	*/
+	
+	// Correct for 8 rooks pattern
 	const ivec2 pullNeighborOffsets[8] = {
-		ivec2(+1, 0),
 		ivec2(-1, 0),
+		ivec2(+1, 0),
 		ivec2(0, +1),
 		ivec2(0, -1),
-		
-		ivec2(0, +1),
 		ivec2(0, -1),
-		ivec2(+1, 0),
+		ivec2(0, +1),
 		ivec2(-1, 0),
+		ivec2(+1, 0),
 	};
 	
-	uint coverageMask = texture(texEHAAEdgeHeuristic, vScreenTexCoord.st).r;
+	// const ivec2 pullNeighborOffsets[8] = {
+	// 	ivec2(-1, 0),
+	// 	ivec2(+1, 0),
+	// 	ivec2(+1, 0),
+	// 	ivec2(-1, 0),
+	// 	ivec2(+1, 0),
+	// 	ivec2(-1, 0),
+	// 	ivec2(-1, 0),
+	// 	ivec2(+1, 0),
+	// };
+	
+	// const ivec2 pullNeighborOffsets[8] = {
+	// 	ivec2(0, 0),
+	// 	ivec2(0, -1),
+	// 	ivec2(+1, 0),
+	// 	ivec2(0, -1),
+	// 	ivec2(-1, 0),
+	// 	ivec2(-1, 0),
+	// 	ivec2(0, +1),
+	// 	ivec2(+1, 0),
+	// };
+	
+	uint baryCoverageMask = texture(texEHAAEdgeHeuristic, vScreenTexCoord.st).r;
 	
 	float pulledNum = 0.0;
 	vec3 pulledAccum = vec3(0.0);
 	
-	float depthMeanQuantized = 1.0;
-	for(int i = 1; i < NUM_SAMPLES; i++) {
+	float ownCoverageFactor = 1.0;
+	for(int i = NUM_SDAA_SAMPLES-1; i > 0; i--) {
 		float otherDepth = texelFetch(texSceneDepthMS, iscreenUV.st, i).r;
 		
 		// It should work to just calc one EPS value based on the center/color sample depth
 		// that is then used for comparison with all the other samples.
 		// This means we only have to do one linearization operation (for the EPS)
 		// instead of one for each sample!
+//		float EPS = 0.00001;
 		float EPS = 0.00001;
 //		if(centerDepth + EPS < otherDepth || centerDepth - EPS > otherDepth) {
+		if(abs(centerDepth - otherDepth) > EPS) {
 //		if((centerDepth == 0.0) ^^ (otherDepth == 0.0)) {
-		if(((coverageMask >> (i - 1)) & 1) == 0) {
+//		if(((baryCoverageMask >> i) & 1) == 0) {
 			const float fac = 1.0;
-			pulledNum += fac;
-//			pulledAccum += (1.0/5.0) * textureOffset(texSceneHDR, vScreenTexCoord.st, -pullNeighborOffsets[i]).rgb;
-			pulledAccum += (fac/float(NUM_SAMPLES)) * tonemapFrag(textureOffset(texSceneHDR, vScreenTexCoord.st, pullNeighborOffsets[i]).rgb, 1.0);
-			
-			depthMeanQuantized -= (1.0/float(NUM_SAMPLES));
+			pulledAccum += (fac/float(NUM_SDAA_SAMPLES)) * tonemapFrag(textureOffset(texSceneHDR, vScreenTexCoord.st, pullNeighborOffsets[i]).rgb, 1.0);
+			ownCoverageFactor -= (fac/float(NUM_SDAA_SAMPLES));
 		}
 	}
 	
@@ -163,12 +198,43 @@ void main() {
 	// 	sceneFragHDR = vec3(1.0);
 	// }
 	
-//	sceneFragHDR = tonemapFrag(sceneFragHDR, 1.0) * (centerDepth == 0.0 ? vec3(1.0 - depthMeanQuantized) : vec3(depthMeanQuantized));
-	sceneFragHDR = (1.0 - min(1.0, pulledNum/float(NUM_SAMPLES)))*tonemapFrag(sceneFragHDR, 1.0) + pulledAccum;
+	vec3 ownColor = tonemapFrag(texture(texSceneHDR, vScreenTexCoord.st).rgb, 1.0);
+	sceneFragHDR = clamp(ownCoverageFactor, 0.0, 1.0) * ownColor + pulledAccum;
+	//sceneFragHDR = vec3(ownCoverageFactor);
+	#endif
+	
+	#if ANTIALIASING_MODE == AA_MODE_NSAA
+	sceneFragHDR = vec3(0.0);
+	const float fac = 1.0/4.0;
+	// sceneFragHDR += fac * tonemapFrag(texture(texSceneHDR, vScreenTexCoord.st).rgb, 1.0);
+	// sceneFragHDR += fac * tonemapFrag(texture(texSceneHDR_NSAA2, vScreenTexCoord.st).rgb, 1.0);
+	// sceneFragHDR += fac * tonemapFrag(texture(texSceneHDR_NSAA3, vScreenTexCoord.st).rgb, 1.0);
+	// sceneFragHDR += fac * tonemapFrag(texture(texSceneHDR_NSAA4, vScreenTexCoord.st).rgb, 1.0);
+	
+	sceneFragHDR = tonemapFrag(texture(texSceneHDR_NSAA4, vScreenTexCoord.st).rgb, 1.0);
+	
+//	uint coverageMask = texture(texEHAAEdgeHeuristic, vScreenTexCoord.st).x;
+	
+//	sceneFragHDR = tonemapFrag(sceneFragHDR, 1.0) * (float(bitCount(coverageMask)) / 4.0);
+//	sceneFragHDR = vec3(float(bitCount(coverageMask)) / 8.0);
 //	sceneFragHDR = tonemapFrag(sceneFragHDR, 1.0);
-//	sceneFragHDR = (1.0 - min(1.0, pulledNum/float(NUM_SAMPLES)))*tonemapFrag(sceneFragHDR, 1.0) + pulledAccum;
+	
+//	sceneFragHDR = tonemapFrag(sceneFragHDR, 1.0);
+	
+//	if(coverageMask == 0) sceneFragHDR.r = 1.0;
+	#endif
+	
+	#if ANTIALIASING_MODE == AA_MODE_NONE
+	// Sample scene frag
+	sceneFragHDR = tonemapFrag(texture(texSceneHDR, vScreenTexCoord.st).rgb, 1.0);
+	#endif
+	
+//	sceneFragHDR = tonemapFrag(sceneFragHDR, 1.0) * (centerDepth == 0.0 ? vec3(1.0 - depthMeanQuantized) : vec3(depthMeanQuantized));
+//	sceneFragHDR = (1.0 - min(1.0, pulledNum/float(NUM_SDAA_SAMPLES)))*tonemapFrag(sceneFragHDR, 1.0) + pulledAccum;
+//	sceneFragHDR = tonemapFrag(sceneFragHDR, 1.0);
+//	sceneFragHDR = (1.0 - min(1.0, pulledNum/float(NUM_SDAA_SAMPLES)))*tonemapFrag(sceneFragHDR, 1.0) + pulledAccum;
 //	sceneFragHDR = (1.0 - pulledNum/5.0)*sceneFragHDR + pulledAccum;
-//	sceneFragHDR = sceneFragHDR*depthMeanQuantized;
+//	sceneFragHDR = tonemapFrag(sceneFragHDR, 1.0)*depthMeanQuantized;
 //	sceneFragHDR = sceneFragHDR * depthMean * 512.0;
 //	sceneFragHDR = pulledAccum;
 //	sceneFragHDR = sceneFragHDR*128.0*depthMean;
@@ -280,5 +346,5 @@ void main() {
 	vec3 tonemappedFrag = sceneFragHDR;
 	
 	// Write final processed frag
-	outFragProcessed = tonemappedFrag;
+	outFragProcessed = tonemappedFrag.rgb;
 }

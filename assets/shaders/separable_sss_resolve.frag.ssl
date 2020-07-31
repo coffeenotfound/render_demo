@@ -11,6 +11,7 @@
 #define SSSS_JITTER 1
 #define SSSS_JITTER_SAMPLE_DISTANCE_THRESHOLD 0.33
 
+// #define SSSS_TEST_QUALITY 71
 #define SSSS_TEST_QUALITY 210
 
 #if SSSS_TEST_QUALITY == 210	// 21 sample kernel, 2.5 importance exponent
@@ -189,7 +190,7 @@ void main() {
 	// Sample the current frag
 	vec3 frag = texture(texSceneHDR, texCoord.st).rgb;
 	float linearDepth = linearizeDepth(1.0 - texture(texSceneDepth, texCoord.st).r, uCameraDepthPlanes);
-		
+	
 	// Calculate the screenspace filter scale (1.0 for a unit plane sitting on the projection window)
 //	float distanceToProjectionWindow = 1.0 / tan(0.5 * uCameraFovyRad);
 	float distanceToProjectionWindow = uDistanceToProjectionWindow;

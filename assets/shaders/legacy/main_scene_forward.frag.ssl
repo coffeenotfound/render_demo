@@ -3,6 +3,9 @@
 
 #extension GL_ARB_derivative_control : require
 
+layout(early_fragment_tests) in;
+layout(post_depth_coverage) in;
+
 // TODO: Try using a bit twiddling rsqrt approximation for optimization everywhere and see how it goes
 
 layout(binding = 1) uniform sampler2D texMaterialAlbedo;
@@ -22,9 +25,14 @@ in vec3 tVertexColor;
 
 flat in float tFuckOffPrimitiveIDFuckingShitDoesnWorkIndex;
 
-layout(location = 0) out vec3 outFrag; // HDR GL_R11F_G11F_B10F
+//layout(location = 0) out vec3 outFrag; // HDR GL_R11F_G11F_B10F
+layout(location = 0) out vec4 outFrag; // HDR GL_R11F_G11F_B10F
 layout(location = 1) out uvec4 outEdgeHeuristic; // GL_RGBA8UI // GL_RGB8  // GL_RG16_SNORM
 layout(location = 2) out vec3 outEdgeHeuristic2; // GL_RGB8  // GL_RG16_SNORM
+
+layout(location = 3) out vec4 outFragNSAA2; // HDR GL_R11F_G11F_B10F
+layout(location = 4) out vec4 outFragNSAA3; // HDR GL_R11F_G11F_B10F
+layout(location = 5) out vec4 outFragNSAA4; // HDR GL_R11F_G11F_B10F
 
 vec3 separablesssTransmittance(vec2 modelTexCoord, float translucency, float sssWidth, vec3 worldPosition, vec3 worldNormal, vec3 lightVector, sampler2D transmissionTex) {
 	float scale = 8.25 * (1.0 - translucency) / sssWidth;
@@ -160,7 +168,7 @@ void main() {
 		
 		float lightAttenuation = 1.0;
 		
-		//vec3 L = normalize(vec3(0.2, 0.5, 0.4)); // DEBUG:
+//		vec3 L = normalize(vec3(0.2, 0.5, 0.4)); // DEBUG:
 		vec3 L = normalize(vec3(-3.0, 3.0, 4.0) - tVertexWorldspace);
 		vec3 H = normalize(V + L);
 		
@@ -196,7 +204,7 @@ void main() {
 	vec3 shadedFrag = radiance;
 	//vec3 shadedFrag = vec3(1.0);
 	
-	{
+	if(false) {
 		vec3 baryCoord = tBaryCoord.xyz;
 		
 		// Extrapolate distance to vertex based on bary to get the actual distance to the edge 
@@ -255,7 +263,7 @@ void main() {
 		vec4 coeffs2 = max(vec4(0.0), vec4(n2.x, n2.y, -n2.x, -n2.y)) * rangecoeff(0.5, 0.0, baryEdgeWidths[2]);
 		
 		vec4 actualCoeffs = max(coeffs0, max(coeffs1, coeffs2));
-		//outEdgeHeuristic = actualCoeffs;
+//		outEdgeHeuristic = actualCoeffs;
 		
 		// DEBUG:
 		//shadedFrag = vec3(actualCoeffs.x, 0.0, 0.0);
@@ -273,20 +281,71 @@ void main() {
 // 	}
 //	shadedFrag = vec3(1.0);
 	
-	vec3 cover0 = interpolateAtOffset(tBaryCoord, vec2(0.125, 0.125));
-	vec3 cover1 = interpolateAtOffset(tBaryCoord, vec2(-0.125, 0.875));
-	vec3 cover2 = interpolateAtOffset(tBaryCoord, vec2(0.125, 0.125));
-	vec3 cover3 = interpolateAtOffset(tBaryCoord, vec2(0.875, -0.125));
+	bool centerCoveredBary = false;
+	bvec4 vsampleCoverages = bvec4(false);
 	
-	vec4 coverMaxs = min(vec4(cover0.x, cover1.x, cover2.x, cover3.x), min(vec4(cover0.y, cover1.y, cover2.y, cover3.y), vec4(cover0.z, cover1.z, cover2.z, cover3.z)));
-	
-	uint coverMask = 
-		(uint(coverMaxs.x < 0.0)) |
-		(uint(coverMaxs.y < 0.0) << 1) |
-		(uint(coverMaxs.z < 0.0) << 2) |
-	  	(uint(coverMaxs.w < 0.0) << 4);
-	
-	outEdgeHeuristic = uvec4(coverMask, 0, 0, 0);
+	if(true) {
+		vec3 cover0 = interpolateAtOffset(tBaryCoord, vec2( 0.25 ,  0.125));
+		vec3 cover1 = interpolateAtOffset(tBaryCoord, vec2(-0.25 , -0.125));
+		vec3 cover2 = interpolateAtOffset(tBaryCoord, vec2(-0.125,  0.25 ));
+		vec3 cover3 = interpolateAtOffset(tBaryCoord, vec2( 0.125, -0.25 ));
+		
+		vec3 cover4 = interpolateAtOffset(tBaryCoord, vec2( 0.375,  0.125));
+		vec3 cover5 = interpolateAtOffset(tBaryCoord, vec2( 0.625,  0.875));
+		vec3 cover6 = interpolateAtOffset(tBaryCoord, vec2( 0.125,  0.625));
+		vec3 cover7 = interpolateAtOffset(tBaryCoord, vec2( 0.875,  0.375));
+		
+		vec4 coverMaxs = min(vec4(cover0.x, cover1.x, cover2.x, cover3.x), min(vec4(cover0.y, cover1.y, cover2.y, cover3.y), vec4(cover0.z, cover1.z, cover2.z, cover3.z)));
+		
+		vec4 coverMaxs2 = min(vec4(cover4.x, cover5.x, cover6.x, cover7.x), min(vec4(cover4.y, cover5.y, cover6.y, cover7.y), vec4(cover4.z, cover5.z, cover6.z, cover7.z)));
+		
+		// uint coverMask =
+		// 	(uint(coverMaxs.x > -0.0001)) |
+		// 	(uint(coverMaxs.y > -0.0001) << 1) |
+		// 	(uint(coverMaxs.z > -0.0001) << 2) |
+		// 	(uint(coverMaxs.w > -0.0001) << 3);
+		
+		uint coverMask = 0;
+		if(all(greaterThan(cover0, vec3(-0.0001)))) coverMask |= 1;
+		if(all(greaterThan(cover1, vec3(-0.0001)))) coverMask |= 2;
+		if(all(greaterThan(cover2, vec3(-0.0001)))) coverMask |= 4;
+		if(all(greaterThan(cover3, vec3(-0.0001)))) coverMask |= 8;
+		
+		if(all(greaterThan(cover4, vec3(-0.0001)))) coverMask |= 16;
+		if(all(greaterThan(cover5, vec3(-0.0001)))) coverMask |= 32;
+		if(all(greaterThan(cover6, vec3(-0.0001)))) coverMask |= 64;
+		if(all(greaterThan(cover7, vec3(-0.0001)))) coverMask |= 128;
+		
+//		centerCoveredBary = all(greaterThanEqual(interpolateAtOffset(tBaryCoord, vec2(0.0)), vec3(-0.0001)));
+//		centerCoveredBary = true;
+		
+		//centerCoveredBary = all(greaterThanEqual(cover2, vec3(-0.0001)));
+		
+		//uint coverMask = uint(coverMaxs.x > 0.0);
+		
+		// if(!any(vsampleCoverages)) {
+		// 	discard;
+		// }
+		
+		// if(any(lessThan(interpolateAtOffset(tBaryCoord, vec2(0.0)), vec3(-0.0001)))) {
+		// 	discard;
+		// }
+		
+//		outEdgeHeuristic = uvec4(coverMask, 0, 0, 0);
+		
+		//shadedFrag = vec3(1.0);
+		//shadedFrag = min(vec3(1.0), vec3(coverMaxs.rgb));
+		
+		vsampleCoverages[0] = !any(lessThan(cover0, vec3(-0.0001)));
+		vsampleCoverages[1] = !any(lessThan(cover1, vec3(-0.0001)));
+		vsampleCoverages[2] = !any(lessThan(cover2, vec3(-0.0001)));
+		vsampleCoverages[3] = !any(lessThan(cover3, vec3(-0.0001)));
+		
+		// vsampleCoverages[0] = ((gl_SampleMaskIn[0] & 1) != 0);
+		// vsampleCoverages[1] = ((gl_SampleMaskIn[0] & 2) != 0);
+		// vsampleCoverages[2] = ((gl_SampleMaskIn[0] & 4) != 0);
+		// vsampleCoverages[3] = ((gl_SampleMaskIn[0] & 8) != 0);
+	}
 	
 	/*
 	// Calculate edge heuristic
@@ -469,8 +528,19 @@ void main() {
 	// DEBUG:
 //	outFrag = N * 0.5 + 0.5;
 	
+//	bool colorSampleCovered = (gl_SampleMaskIn[0] & 1) != 0;
+//	bool colorSampleCovered = centerCoveredBary;
+//	bool colorSampleCovered = true;
+	bool colorSampleCovered = vsampleCoverages[0];
+	
 	// Write hdr scene frag
-	outFrag = shadedFrag;
+	outFrag = vec4(shadedFrag, colorSampleCovered ? 1.0 : 0.0); // alpha is for sdaa coverage modulation blending
+	
+	// outFragNSAA2 = vec4(shadedFrag, vsampleCoverages[1] ? 1.0 : 0.0);
+	// outFragNSAA3 = vec4(shadedFrag, vsampleCoverages[2] ? 1.0 : 0.0);
+	// outFragNSAA4 = vec4(shadedFrag, vsampleCoverages[3] ? 1.0 : 0.0);
+	
+//	outFrag.rgb = vec3(0.0, mod(gl_FragCoord.x - 0.5, 2.0) - 0.5, mod(gl_FragCoord.y - 0.5, 2.0) - 0.5);
 	
 //	outFrag = tVertexColor;
 //	outFrag = vec3(1.0);

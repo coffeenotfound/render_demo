@@ -1,9 +1,12 @@
 @glslversion 430 core
 @namespace legacy.main_scene_forward.vert
 
+#define ENABLE_BARY_TESS 0
+
 uniform mat4 uMatrixViewProjection;
 uniform mat4 uMatrixView;
 uniform mat4 uMatrixModel;
+uniform vec3 uEyePosWorldspace;
 
 layout(location = 0) in vec3 inVertex;
 layout(location = 1) in vec2 inTexCoord;
@@ -15,15 +18,29 @@ layout(location = 3) in vec4 inTangent;
 //uniform mat4 uMatrixVP;
 //in mat3 inModelMatrix;
 
-out VVertexData {
-	vec2 vModelTexCoord;
-	vec3 vNormal;
-	vec3 vTangent;
-	vec3 vBitangent;
-	vec3 vVertexWorldspace;
-	vec3 vEyeDirWorldspace;
-	vec3 vVertexColor;
-};
+#if ENABLE_BARY_TESS != 0
+	#define VOUT(name) v##name
+	
+	out VVertexData {
+		vec2 vModelTexCoord;
+		vec3 vNormal;
+		vec3 vTangent;
+		vec3 vBitangent;
+		vec3 vVertexWorldspace;
+		vec3 vEyeDirWorldspace;
+		vec3 vVertexColor;
+	};
+#else
+	#define VOUT(name) t##name
+	
+	out vec2 tModelTexCoord;
+	out vec3 tNormal;
+	out vec3 tTangent;
+	out vec3 tBitangent;
+	out vec3 tVertexWorldspace;
+	out vec3 tEyeDirWorldspace;
+	out vec3 tVertexColor;
+#endif
 //out vec3 tBaryCoord;
 //out vec3 tVertexColor;
 
@@ -42,22 +59,28 @@ void main() {
 //	tVertexColor = vec3(1.0);
 	
 	// DEBUG: Flip tex coords for now
-	vModelTexCoord = vec2(1.0 - inTexCoord.s, 1.0 - inTexCoord.t);
+	VOUT(ModelTexCoord) = vec2(1.0 - inTexCoord.s, 1.0 - inTexCoord.t);
 	
 	// Calc normal, tangent and bitangent
 	//mat3 normalMatrix = transpose(inverse(mat3(uMatrixModel)));
 	mat3 normalMatrix = mat3(1.0);
 	
-	vNormal = normalMatrix * inNormal.xyz;
-	vTangent = -normalMatrix * inTangent.xyz; // For some reason we need to flip the tangent and bitangent for it to look correctly
-	vBitangent = -cross(vNormal, vTangent) * inTangent.w;
+	VOUT(Normal) = normalMatrix * inNormal.xyz;
+	VOUT(Tangent) = -normalMatrix * inTangent.xyz; // For some reason we need to flip the tangent and bitangent for it to look correctly
+	VOUT(Bitangent) = -cross(VOUT(Normal), VOUT(Tangent)) * inTangent.w;
+	
+	// DEBUG: Instanced test
+	mat4 modelMatrix = uMatrixModel;
+	modelMatrix[3][0] = -4 + mod(float(gl_InstanceID), 8.0) * 2.0;
+	modelMatrix[3][2] = -4 + floor(gl_InstanceID / 8) * 2.0;
 	
 	//vec4 eyeDirHomogenous = transpose(inverse(uMatrixViewProjection)) * vec4(vec3(0.0, 0.0, 1.0), 1.0);
-	vec4 worldspaceVertex = uMatrixModel * vec4(inVertex.xyz, 1.0);
-	vVertexWorldspace = worldspaceVertex.xyz / worldspaceVertex.w;
+	vec4 worldspaceVertex = modelMatrix * vec4(inVertex.xyz, 1.0);
+	VOUT(VertexWorldspace) = worldspaceVertex.xyz / worldspaceVertex.w;
 	
-	vec4 eyeDirHomogenous = inverse(uMatrixView) * vec4(0.0, 0.0, 0.0, 1.0);
-	vEyeDirWorldspace = eyeDirHomogenous.xyz / eyeDirHomogenous.w;	
+//	vec4 eyeDirHomogenous = inverse(uMatrixView) * vec4(0.0, 0.0, 0.0, 1.0);
+//	VOUT(EyeDirWorldspace) = eyeDirHomogenous.xyz / eyeDirHomogenous.w;
+	VOUT(EyeDirWorldspace) = vec3(uMatrixView * vec4(uEyePosWorldspace, 1.0));
 	
 	gl_Position = uMatrixViewProjection * worldspaceVertex;
 }
