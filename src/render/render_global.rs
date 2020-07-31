@@ -517,6 +517,8 @@ impl RenderGlobal {
 				if elapsed_frametime != std::u64::MAX {
 					let _float_frametime = (elapsed_frametime as f64) / 1e6;
 					
+					println!("frametime {} ms", _float_frametime);
+					
 //					let title = format!("EHAA Demo ~ Frametime {} ms", float_frametime);
 //					self.window.need_mut().set_title(title.as_str());
 					
