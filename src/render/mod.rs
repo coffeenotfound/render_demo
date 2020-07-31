@@ -1,5 +1,4 @@
 mod render_global; pub use render_global::*;
-mod graphics_settings; pub use graphics_settings::*;
 mod texture; pub use texture::*;
 mod image_format; pub use image_format::*;
 mod framebuffer; pub use framebuffer::*;
