@@ -5,6 +5,7 @@ use crate::asset::{AssetPathBuf, AssetPath, ASSET_MANAGER_INSTANCE};
 use crate::render::shader::{ShaderProgram, Shader, ShaderCode, ProgramLinkOptions, ShaderStage, ShaderCompileOptions, ShaderCompileStatus, ProgramLinkStatus};
 use crate::render::shader::managed::ProgramAssetSchema;
 use crate::structured_shader_language::{SSLSourceParser, ParsedSource, SSLTranspiler};
+use crate::render::shader::managed::program_asset_schema::ProgramAssetSchema::ShaderStageDef;
 
 pub struct ManagedProgram {
 	program_asset_path: Option<AssetPathBuf>,
@@ -158,6 +159,12 @@ impl ManagedProgram {
 		
 		// Load the shaders
 		for shader_def in &program_def.shaders {
+			// DEBUG:
+			if shader_def.stage == ShaderStageDef::TessEvaluation {
+				println!("Skipped tess eval shader load");
+				continue;
+			}
+			
 			// Load the referenced code
 			let asset_path = AssetPathBuf::from(&shader_def.source);
 			let source_code = load_asset_as_str(&asset_path.as_path(), &program_asset_path)?;
