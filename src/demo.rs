@@ -390,6 +390,9 @@ impl Demo {
 			// Get tick delta time, clamped from 0 to 1
 			let delta_time = f32::min(f32::max((current_time - carousel.last_tick_time) as f32, 0.0), 1.0);
 			
+			// DEBUG: Slow spin
+			self.test_camera_orbit.angles.y += Deg(0.1 * delta_time).into();
+			
 			let mouse_pos = self.main_window.need().borrow().get_cursor_pos();
 			
 			let button_state = self.main_window.need().borrow().get_mouse_button(glfw::MouseButtonLeft);
