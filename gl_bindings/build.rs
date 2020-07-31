@@ -17,6 +17,9 @@ fn main() {
 		
 		"GL_ARB_sample_locations",
 		"GL_NV_framebuffer_mixed_samples",
+		"GL_NV_fragment_coverage_to_color",
+		
+		"GL_NV_conservative_raster",
 	];
 	Registry::new(Api::Gl, (4, 5), Profile::Compatibility, Fallbacks::All, exts)
 		.write_bindings(GlobalGenerator, &mut gl_file)
