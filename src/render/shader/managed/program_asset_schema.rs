@@ -27,7 +27,7 @@ pub mod ProgramAssetSchema {
 		pub source: String,
 	}
 	
-	#[derive(Deserialize, Copy, Clone)]
+	#[derive(Deserialize, Copy, Clone, Eq, PartialEq)]
 	#[serde(rename = "Stage")]
 	#[allow(non_camel_case_types)]
 	pub enum ShaderStageDef {

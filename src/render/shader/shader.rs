@@ -1,7 +1,7 @@
 use gl_bindings::gl;
 use std::mem;
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Eq, PartialEq)]
 pub enum ShaderStage {
 	Vertex,
 	Fragment,
