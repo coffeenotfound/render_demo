@@ -4,7 +4,7 @@ use std::cell::RefCell;
 use std::ops::Deref;
 use std::sync::Mutex;
 use gl_bindings::gl;
-use cgmath::{Matrix4, SquareMatrix, vec3, Point3, Rad};
+use cgmath::{Matrix4, SquareMatrix, vec3, Point3, Rad, Vector3};
 use crate::demo;
 use crate::utils::lazy_option::Lazy;
 use crate::render::{Framebuffer, FramebufferAttachment, AttachmentPoint, ImageFormat, RenderSubsystem, Texture};
@@ -429,9 +429,14 @@ impl RenderGlobal {
 		let camera_near_z: f32;
 		let camera_far_z: f32;
 		
+		let camera_pos: Vector3<f32>;
+		
 		let cam_state = {
 			let cam = Mutex::lock(&active_camera).unwrap();
 			let mut state = RenderCameraState::new();
+			
+			// Get camera pos
+			camera_pos = cam.translation;
 			
 			// Get camera fovy
 //			let projection: &dyn Any = cam.projection.as_ref();
@@ -501,6 +506,8 @@ impl RenderGlobal {
 				
 				let viewprojection_matrix_arr: [[f32; 4]; 4] = viewprojection_matrix.into();
 				gl::UniformMatrix4fv(gl::GetUniformLocation(scene_shader_gl, "uMatrixViewProjection\0".as_ptr() as *const gl::char), 1, gl::FALSE, viewprojection_matrix_arr.as_ptr() as *const gl::float);
+				
+				gl::Uniform3f(gl::GetUniformLocation(scene_shader_gl, "uEyePosWorldspace\0".as_ptr() as *const gl::char), camera_pos.x, camera_pos.y, camera_pos.z);
 			}
 			
 			let start_frametimer = {// Start frametime timer
