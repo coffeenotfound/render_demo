@@ -12,6 +12,14 @@ use crate::render::separable_sss::SeparableSSSSubsystem;
 use crate::render::shader::managed::ManagedProgram;
 use crate::asset::AssetPathBuf;
 
+#[derive(Copy, Clone, Debug)]
+pub enum AntialiasingMode {
+	None,
+	MSAA {samples: u32},
+	SDAA {coverage_samples: u32},
+	SCAA {color_samples: u32, coverage_samples: u32},
+}
+
 pub struct RenderGlobal {
 	current_configuration: Rc<RefCell<GraphicsConfiguration>>,
 	current_resolution: (u32, u32),
@@ -27,7 +35,12 @@ pub struct RenderGlobal {
 	
 	queued_shader_reload: bool,
 	
-	num_sdaa_samples: u32,
+	enable_bary_tess: bool,
+	antialiasing_mode: AntialiasingMode,
+	
+//	enable_sdaa: bool,
+//	num_sdaa_samples: u32,
+//	enable_nsaa: bool,
 }
 
 impl RenderGlobal {
@@ -47,7 +60,18 @@ impl RenderGlobal {
 			
 			queued_shader_reload: false,
 			
-			num_sdaa_samples: 8,
+			enable_bary_tess: false,
+			
+//			antialiasing_mode: AntialiasingMode::None,
+			antialiasing_mode: AntialiasingMode::MSAA {samples: 4},
+//			antialiasing_mode: AntialiasingMode::SDAA {coverage_samples: 4},
+//			antialiasing_mode: AntialiasingMode::SCAA {color_samples: 2, coverage_samples: 4},
+			
+//			enable_sdaa: true,
+//			num_sdaa_samples: 4,
+//			num_color_samples: 4,
+//			
+//			enable_nsaa: false,
 		}
 	}
 	
@@ -85,13 +109,46 @@ impl RenderGlobal {
 			self.framebuffer_scene_hdr_ehaa = Some(Rc::new(RefCell::new({
 				let mut fbo = Framebuffer::new(event.resolution.0, event.resolution.1);
 				
-				fbo.add_attachment(FramebufferAttachment::from_new_texture(AttachmentPoint::Depth, ImageFormat::get(gl::DEPTH_COMPONENT32F)));
-//				fbo.add_attachment(FramebufferAttachment::from_texture(AttachmentPoint::Depth, Rc::new(RefCell::new(Texture::new_ms(0, 0, self.num_sdaa_samples, ImageFormat::get(gl::DEPTH_COMPONENT32F)))), 0)); // Multisampled depth attachment for SDAA
-				fbo.add_attachment(FramebufferAttachment::from_new_texture(AttachmentPoint::Color(0), ImageFormat::get(gl::R11F_G11F_B10F)));
-				fbo.add_attachment(FramebufferAttachment::from_new_texture(AttachmentPoint::Color(1), ImageFormat::get(gl::RGBA8UI)));
-				fbo.add_attachment(FramebufferAttachment::from_new_texture(AttachmentPoint::Color(2), ImageFormat::get(gl::RGB8)));
-//				fbo.add_attachment(FramebufferAttachment::from_new_texture(AttachmentPoint::Color(1), ImageFormat::get(gl::RGBA8)));
-//				fbo.add_attachment(FramebufferAttachment::from_new_texture(AttachmentPoint::Color(1), ImageFormat::get(gl::RG16_SNORM)));
+				fn add_attachment(framebuffer: &mut Framebuffer, attachment_point: AttachmentPoint, internal_format: ImageFormat, samples: Option<u32>) {
+					let texture = if let Some(n) = samples {
+						Rc::new(RefCell::new(Texture::new_ms(0, 0, n, internal_format)))
+					} else {
+						Rc::new(RefCell::new(Texture::new(0, 0, 1, internal_format)))
+					};
+					framebuffer.add_attachment(FramebufferAttachment::from_texture(attachment_point, texture, 0));
+				}
+//				let color_samples = Some().filter(|n| *n > 1);
+//				let depth_samples = self.enable_sdaa.then_some(self.num_sdaa_samples).filter(|n| *n > 1);
+				
+				use AntialiasingMode as AA;
+				let (color_samples, depth_samples) = match &self.antialiasing_mode {
+					AA::MSAA {samples} => (Some(*samples), Some(*samples)),
+					AA::SDAA {coverage_samples} => (None, Some(*coverage_samples)),
+					AA::SCAA {color_samples, coverage_samples} => (Some(*color_samples), Some(*coverage_samples)),
+					AA::None | _ => (None, None),
+				};
+				
+				add_attachment(&mut fbo, AttachmentPoint::Depth, ImageFormat::get(gl::DEPTH_COMPONENT24), depth_samples);
+				add_attachment(&mut fbo, AttachmentPoint::Color(0), ImageFormat::get(gl::R11F_G11F_B10F), color_samples);
+//				add_attachment(&mut fbo, AttachmentPoint::Color(1), ImageFormat::get(gl::R8UI), color_samples);
+//				add_attachment(&mut fbo, AttachmentPoint::Color(2), ImageFormat::get(gl::RGBA8), color_samples);
+				
+//				add_attachment(&mut fbo, AttachmentPoint::Color(3), ImageFormat::get(gl::R11F_G11F_B10F), color_samples);
+//				add_attachment(&mut fbo, AttachmentPoint::Color(4), ImageFormat::get(gl::R11F_G11F_B10F), color_samples);
+//				add_attachment(&mut fbo, AttachmentPoint::Color(5), ImageFormat::get(gl::R11F_G11F_B10F), color_samples);
+				
+////				fbo.add_attachment(FramebufferAttachment::from_new_texture(AttachmentPoint::Depth, ImageFormat::get(gl::DEPTH_COMPONENT32F)));
+//				if !self.enable_sdaa {fbo.add_attachment(FramebufferAttachment::from_new_texture(AttachmentPoint::Depth, ImageFormat::get(gl::DEPTH_COMPONENT24)));}
+//				else {fbo.add_attachment(FramebufferAttachment::from_texture(AttachmentPoint::Depth, Rc::new(RefCell::new(Texture::new_ms(0, 0, self.num_sdaa_samples, ImageFormat::get(gl::DEPTH_COMPONENT24)))), 0));} // Multisampled depth attachment for SDAA
+////				fbo.add_attachment(FramebufferAttachment::from_texture(AttachmentPoint::Depth, Rc::new(RefCell::new(Texture::new_ms(0, 0, self.num_sdaa_samples, ImageFormat::get(gl::DEPTH_COMPONENT32F)))), 0)); // Multisampled depth attachment for SDAA
+//				if self.num_color_samples <= 1 {fbo.add_attachment(FramebufferAttachment::from_new_texture(AttachmentPoint::Color(0), ImageFormat::get(gl::R11F_G11F_B10F)));}
+//				else {fbo.add_attachment(FramebufferAttachment::from_new_texture(AttachmentPoint::Color(0), ImageFormat::get(gl::R11F_G11F_B10F)));}
+////				fbo.add_attachment(FramebufferAttachment::from_new_texture(AttachmentPoint::Color(0), ImageFormat::get(gl::R11F_G11F_B10F)));
+////				fbo.add_attachment(FramebufferAttachment::from_new_texture(AttachmentPoint::Color(1), ImageFormat::get(gl::RGBA8UI)));
+////				fbo.add_attachment(FramebufferAttachment::from_new_texture(AttachmentPoint::Color(1), ImageFormat::get(gl::R8UI)));
+////				fbo.add_attachment(FramebufferAttachment::from_new_texture(AttachmentPoint::Color(2), ImageFormat::get(gl::RGB8)));
+////				fbo.add_attachment(FramebufferAttachment::from_new_texture(AttachmentPoint::Color(1), ImageFormat::get(gl::RGBA8)));
+////				fbo.add_attachment(FramebufferAttachment::from_new_texture(AttachmentPoint::Color(1), ImageFormat::get(gl::RG16_SNORM)));
 				
 				fbo.allocate();
 				fbo
@@ -114,11 +171,11 @@ impl RenderGlobal {
 		unsafe {
 			let main_fbo = self.framebuffer_scene_hdr_ehaa.need().borrow();
 			
-//			gl::NamedFramebufferParameteri(main_fbo.handle_gl(), gl::FRAMEBUFFER_PROGRAMMABLE_SAMPLE_LOCATIONS_ARB, 16);
-			gl::NamedFramebufferParameteri(main_fbo.handle_gl(), gl::FRAMEBUFFER_PROGRAMMABLE_SAMPLE_LOCATIONS_ARB, 0);
+			let enable_sample_locations = if let AntialiasingMode::SDAA {..} = &self.antialiasing_mode {true} else {false};
+			gl::NamedFramebufferParameteri(main_fbo.handle_gl(), gl::FRAMEBUFFER_PROGRAMMABLE_SAMPLE_LOCATIONS_ARB, if enable_sample_locations {16} else {0});
 			gl::NamedFramebufferParameteri(main_fbo.handle_gl(), gl::FRAMEBUFFER_SAMPLE_LOCATION_PIXEL_GRID_ARB, 0);
 			
-			let mut sample_locations = [0.5f32; 32];
+			let mut sample_locations = [0.5f32; 16];
 			
 //			{// 5 samples
 //				sample_locations[0] = 0.5;
@@ -147,13 +204,13 @@ impl RenderGlobal {
 				// hoping for the best when defining the first two
 				// samples as our color samples.
 				
-				// Southwest (down left) (color sample 2)
+				// Southwest (down right)
 //				sample_locations[0] = 0.5-0.25;
 //				sample_locations[1] = 0.5-0.125;
 				sample_locations[0] = 0.5;
 				sample_locations[1] = 0.5;
 				
-				// Northeast (up right) (color sample 1)
+				// Northeast (up right)
 				sample_locations[2] = 0.5+0.25;
 				sample_locations[3] = 0.5+0.125;
 				
@@ -166,11 +223,11 @@ impl RenderGlobal {
 				sample_locations[7] = 0.5-0.25;
 				
 				// South (down)
-				sample_locations[8] = 0.5+0.125;
+				sample_locations[8] = 0.5-0.125;
 				sample_locations[9] = 0.0+0.125;
 				
 				// North (up)
-				sample_locations[10] = 0.5-0.125;
+				sample_locations[10] = 0.5+0.125;
 				sample_locations[11] = 1.0-0.125;
 				
 				// West (left)
@@ -182,7 +239,70 @@ impl RenderGlobal {
 				sample_locations[15] = 0.5-0.125;
 			}
 			
+//			{
+//				// https://docs.microsoft.com/en-us/windows/win32/api/d3d11/ne-d3d11-d3d11_standard_multisample_quality_levels
+//				// (sample 0 and 1 are swapped)
+//				
+//				// Color sample
+//				sample_locations[0] = 0.5 + (-1.0 / 16.0);
+//				sample_locations[1] = 0.5 + (3.0 / 16.0);
+//				
+//				// Up 1
+//				sample_locations[2] = 0.5 + (1.0 / 16.0);
+//				sample_locations[3] = 0.5 + (-3.0 / 16.0);
+//				
+//				// Right 1
+//				sample_locations[4] = 0.5 + (5.0 / 16.0);
+//				sample_locations[5] = 0.5 + (1.0 / 16.0);
+//				
+//				// Up 2 
+//				sample_locations[6] = 0.5 + (-3.0 / 16.0);
+//				sample_locations[7] = 0.5 + (-5.0 / 16.0);
+//				
+//				// Left 1
+//				sample_locations[8] = 0.5 + (-5.0 / 16.0);
+//				sample_locations[9] = 0.5 + (5.0 / 16.0);
+//				
+//				// Left 2
+//				sample_locations[10] = 0.5 + (-7.0 / 16.0);
+//				sample_locations[11] = 0.5 + (-1.0 / 16.0);
+//				
+//				// Down 1
+//				sample_locations[12] = 0.5 + (3.0 / 16.0);
+//				sample_locations[13] = 0.5 + (7.0 / 16.0);
+//				
+//				// Right 2
+//				sample_locations[14] = 0.0 + (7.0 / 16.0);
+//				sample_locations[15] = 0.5 + (-7.0 / 16.0);
+//			}
+			
+			let mut sample_location_grid_buffer = vec![0f32; 4*4*8*2];
+			sample_location_grid_buffer.chunks_exact_mut(8*2).for_each(|p| {
+				p.copy_from_slice(&sample_locations);
+			});
+			
 			gl::NamedFramebufferSampleLocationsfvARB(main_fbo.handle_gl(), 0, 16, &sample_locations as *const gl::float);
+//			gl::NamedFramebufferSampleLocationsfvARB(main_fbo.handle_gl(), 0, 16, sample_location_grid_buffer.as_ptr() as *const gl::float);
+		}
+		
+		// Configure coverage modulation table
+		unsafe {
+			// Query table size
+			let mut modulation_table_size: gl::int = 0;
+			gl::GetIntegerv(gl::COVERAGE_MODULATION_TABLE_SIZE_NV, &mut modulation_table_size);
+			println!("COVERAGE_MODULATION_TABLE_SIZE_NV = {}", modulation_table_size);
+			
+			let mut modulation_table_buffer = vec![0f32; modulation_table_size as usize];
+			
+			for (i, v) in modulation_table_buffer.iter_mut().enumerate() {
+				*v = i as f32 / modulation_table_size as f32;
+//				*v = ((i / 4) * 4) as f32 / modulation_table_size as f32;
+//				*v = if ((i + 1) as f32 / modulation_table_size as f32) < (4.0 / 16.0) {0.0} else {1.0};
+			}
+			
+			println!("{:?}", modulation_table_buffer);
+			
+			gl::CoverageModulationTableNV(modulation_table_size, modulation_table_buffer.as_ptr());
 		}
 		
 		// DEBUG: Get mixed_samples support
@@ -193,8 +313,14 @@ impl RenderGlobal {
 			let mut sample_locations_table_size: gl::int = 0;
 			gl::GetIntegerv(gl::PROGRAMMABLE_SAMPLE_LOCATION_TABLE_SIZE_ARB, &mut sample_locations_table_size);
 			
+			let (mut sample_grid_width, mut sample_grid_height): (gl::int, gl::int) = (0, 0);
+			gl::GetIntegerv(gl::SAMPLE_LOCATION_PIXEL_GRID_WIDTH_ARB, &mut sample_grid_width);
+			gl::GetIntegerv(gl::SAMPLE_LOCATION_PIXEL_GRID_HEIGHT_ARB, &mut sample_grid_height);
+			
 			println!("MAX_RASTER_SAMPLES_EXT = {}", max_raster_samples);
 			println!("PROGRAMMABLE_SAMPLE_LOCATION_TABLE_SIZE_ARB = {}", sample_locations_table_size);
+			println!("SAMPLE_LOCATION_PIXEL_GRID_WIDTH_ARB = {}", sample_grid_width);
+			println!("SAMPLE_LOCATION_PIXEL_GRID_HEIGHT_ARB = {}", sample_grid_height);
 		}
 		
 		// Reconfigure subsystems
@@ -250,7 +376,6 @@ impl RenderGlobal {
 		
 		// Reload shader from assets
 		
-		
 //		// Load shaders
 //		self.program_ehaa_scene = Some({
 //			let mut s = ShaderProgram::new_from_file(
@@ -271,7 +396,14 @@ impl RenderGlobal {
 //			s.compile();
 //			Rc::new(RefCell::new(s))
 //		});
-
+		
+		// Set tessellation state
+		unsafe {
+			gl::PatchParameteri(gl::PATCH_VERTICES, 3);
+			gl::PatchParameterfv(gl::PATCH_DEFAULT_OUTER_LEVEL, [1.0f32, 1.0f32, 1.0f32, 1.0f32].as_ptr());
+			gl::PatchParameterfv(gl::PATCH_DEFAULT_INNER_LEVEL, [1.0f32, 1.0f32].as_ptr());
+		}
+		
 		// Reload subsystem shaders
 		self.separable_sss_system.reload_shaders();
 	}
@@ -390,18 +522,68 @@ impl RenderGlobal {
 				}
 			};
 			
-			// Set tessellation state
-			gl::PatchParameteri(gl::PATCH_VERTICES, 3);
-			gl::PatchParameterfv(gl::PATCH_DEFAULT_OUTER_LEVEL, [1.0f32, 1.0f32, 1.0f32, 1.0f32].as_ptr());
-			gl::PatchParameterfv(gl::PATCH_DEFAULT_INNER_LEVEL, [1.0f32, 1.0f32].as_ptr());
-			
 			gl::EnableVertexAttribArray(0);
 //			gl::EnableVertexAttribArray(1);
 //			gl::EnableVertexAttribArray(2);
 			
-			// DEBUG: Enable mixed_samples
-//			gl::Enable(gl::RASTER_MULTISAMPLE_EXT);
-//			gl::RasterSamplesEXT(self.num_sdaa_samples as gl::uint, gl::FALSE);
+			{// DEBUG: Enable mixed_samples
+//				gl::Enable(gl::RASTER_MULTISAMPLE_EXT);
+//				gl::RasterSamplesEXT(self.num_sdaa_samples as gl::uint, gl::TRUE);
+				
+//				gl::Enable(gl::COVERAGE_MODULATION_TABLE_NV);
+//				gl::CoverageModulationNV(gl::ALPHA);
+				
+//				gl::Enable(gl::ALPHA_TEST);
+//				gl::AlphaFunc();
+				
+				{
+//					gl::Enablei(gl::BLEND, 0);
+//					gl::BlendFunci(0, gl::SRC_ALPHA, gl::ONE_MINUS_SRC_ALPHA);
+//					
+//					gl::Enablei(gl::BLEND, 3);
+//					gl::BlendFunci(3, gl::SRC_ALPHA, gl::ONE_MINUS_SRC_ALPHA);
+//					
+//					gl::Enablei(gl::BLEND, 4);
+//					gl::BlendFunci(4, gl::SRC_ALPHA, gl::ONE_MINUS_SRC_ALPHA);
+//					
+//					gl::Enablei(gl::BLEND, 5);
+//					gl::BlendFunci(5, gl::SRC_ALPHA, gl::ONE_MINUS_SRC_ALPHA);
+				}
+				
+				if let AntialiasingMode::SDAA {..} = self.antialiasing_mode {
+					gl::Enable(gl::BLEND);
+					
+					gl::Enablei(gl::BLEND, 0);
+					gl::BlendFunci(0, gl::SRC_ALPHA, gl::ONE_MINUS_SRC_ALPHA);
+					
+					gl::Enablei(gl::BLEND, 3);
+					gl::BlendFunci(3, gl::SRC_ALPHA, gl::ONE_MINUS_SRC_ALPHA);
+					
+					gl::Enablei(gl::BLEND, 4);
+					gl::BlendFunci(4, gl::SRC_ALPHA, gl::ONE_MINUS_SRC_ALPHA);
+					
+					gl::Enablei(gl::BLEND, 5);
+					gl::BlendFunci(5, gl::SRC_ALPHA, gl::ONE_MINUS_SRC_ALPHA);
+					
+//					gl::Enable(gl::FRAGMENT_COVERAGE_TO_COLOR_NV);
+//					gl::FragmentCoverageColorNV(1);
+				}
+				
+				if false/*self.enable_nsaa*/ {
+					gl::Enablei(gl::BLEND, 0);
+					gl::BlendFunci(0, gl::SRC_ALPHA, gl::ONE_MINUS_SRC_ALPHA);
+					
+//					gl::Enablei(gl::BLEND, 1);
+					
+//					gl::Enable(gl::CONSERVATIVE_RASTERIZATION_NV);
+//					gl::BlendFunci();
+				}
+				
+//				gl::BlendFunc(gl::ONE, gl::ZERO);
+//				gl::BlendEquation(gl::FUNC_ADD);
+				
+//				gl::Enable(gl::CONSERVATIVE_RASTERIZATION_NV);
+			}
 			
 			/*
 			{// Draw teapot
@@ -437,8 +619,10 @@ impl RenderGlobal {
 				
 				gl::BindBuffer(gl::ELEMENT_ARRAY_BUFFER, test_head_model.index_buffer_gl);
 				
-				gl::DrawElements(gl::PATCHES, test_head_model.num_indices as gl::sizei, gl::UNSIGNED_INT, 0 as *const gl::void);
+				let prim_mode = if self.enable_bary_tess {gl::PATCHES} else {gl::TRIANGLES};
+//				gl::DrawElements(gl::PATCHES, test_head_model.num_indices as gl::sizei, gl::UNSIGNED_INT, 0 as *const gl::void);
 //				gl::DrawElements(gl::TRIANGLES, self.test_head_model.need().num_indices as gl::GLsizei, gl::UNSIGNED_INT, 0 as *const std::ffi::c_void);
+				gl::DrawElementsInstanced(prim_mode, test_head_model.num_indices as gl::sizei, gl::UNSIGNED_INT, 0 as *const gl::void, 64);
 				
 				gl::DisableVertexAttribArray(0);
 				gl::DisableVertexAttribArray(1);
@@ -478,8 +662,20 @@ impl RenderGlobal {
 			}
 			*/
 			
+			// Evaluate depth values at programmable sample locations
+			// (ensures correct values if depth values are stored in compressed form)
+//			gl::EvaluateDepthValuesARB();
+			
 			// DEBUG: Disable mixed_samples
-			gl::Disable(gl::RASTER_MULTISAMPLE_EXT);
+//			gl::Disable(gl::RASTER_MULTISAMPLE_EXT);
+//			gl::Disable(gl::COVERAGE_MODULATION_TABLE_NV);
+//			gl::Disable(gl::ALPHA_TEST);
+			gl::Disable(gl::BLEND);
+			gl::Disablei(gl::BLEND, 0);
+			gl::Disablei(gl::BLEND, 1);
+			gl::Disablei(gl::BLEND, 3);
+			gl::Disablei(gl::BLEND, 4);
+			gl::Disablei(gl::BLEND, 5);
 			
 			{// Resolve separable sss
 				let main_fbo = RefCell::borrow(self.framebuffer_scene_hdr_ehaa.need());
@@ -505,10 +701,14 @@ impl RenderGlobal {
 				let main_fbo = RefCell::borrow(self.framebuffer_scene_hdr_ehaa.need());
 //				gl::BindTextureUnit(0, RefCell::borrow(&main_fbo.get_attachment(AttachmentPoint::Color(0)).unwrap().texture).texture_gl());
  				gl::BindTextureUnit(0, RefCell::borrow(&self.separable_sss_system.fbo_resolve_final.get_attachment(AttachmentPoint::Color(0)).unwrap().texture).texture_gl());
-				gl::BindTextureUnit(1, RefCell::borrow(&main_fbo.get_attachment(AttachmentPoint::Color(1)).unwrap().texture).texture_gl());
-				gl::BindTextureUnit(2, RefCell::borrow(&main_fbo.get_attachment(AttachmentPoint::Color(2)).unwrap().texture).texture_gl());
+//				gl::BindTextureUnit(1, RefCell::borrow(&main_fbo.get_attachment(AttachmentPoint::Color(1)).unwrap().texture).texture_gl());
+//				gl::BindTextureUnit(2, RefCell::borrow(&main_fbo.get_attachment(AttachmentPoint::Color(2)).unwrap().texture).texture_gl());
 				
 				gl::BindTextureUnit(4, RefCell::borrow(&main_fbo.get_attachment(AttachmentPoint::Depth).unwrap().texture).texture_gl());
+				
+//				gl::BindTextureUnit(5, RefCell::borrow(&main_fbo.get_attachment(AttachmentPoint::Color(3)).unwrap().texture).texture_gl());
+//				gl::BindTextureUnit(6, RefCell::borrow(&main_fbo.get_attachment(AttachmentPoint::Color(4)).unwrap().texture).texture_gl());
+//				gl::BindTextureUnit(7, RefCell::borrow(&main_fbo.get_attachment(AttachmentPoint::Color(5)).unwrap().texture).texture_gl());
 				
 				// Bind back buffer
 				gl::BindFramebuffer(gl::FRAMEBUFFER, 0);
